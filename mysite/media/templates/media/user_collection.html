@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% load media_tags %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>My Collection</h1>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col">
+            <a href="{% url 'home' %}" class="btn btn-outline-primary">Browse All Media</a>
+        </div>
+    </div>
+    
+    <div class="row">
+        {% for user_media in user_media %}
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">{{ user_media.media.title }}</h5>
+                    <h6 class="card-subtitle mb-2 text-muted">{{ user_media.media.get_media_type_display }}</h6>
+                    
+                    {% if user_media.media.plot %}
+                    <p class="card-text">{{ user_media.media.plot|truncatewords:30 }}</p>
+                    {% endif %}
+
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            {% with user_rating=user_ratings|get_item:user_media.media.id %}
+                                {% if user_rating %}
+                                <span class="badge bg-info">Your rating: {{ user_rating }}/10</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Not rated yet</span>
+                                {% endif %}
+                            {% endwith %}
+                        </div>
+
+                        <div>
+                            {% with user_rating=user_ratings|get_item:user_media.media.id %}
+                                {% if user_rating %}
+                                <a href="{% url 'rate_media' user_media.media.id %}" class="btn btn-sm btn-outline-primary">Update Rating</a>
+                                {% else %}
+                                <a href="{% url 'rate_media' user_media.media.id %}" class="btn btn-sm btn-outline-primary">Rate</a>
+                                {% endif %}
+                            {% endwith %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <p class="text-center">Your collection is empty. <a href="{% url 'home' %}">Browse media</a> to add items to your collection.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %} 

@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% load media_tags %}
+
+{% block content %}
+<div class="container mt-4">
+    {% if is_authenticated %}
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Media Collection</h1>
+        <div>
+            <span class="me-2">Welcome, {{ user.username }}</span>
+        </div>
+    </div>
+    {% else %}
+    <div class="text-center mb-5">
+        <h1 class="display-4 mb-4">Welcome to MediaCheck</h1>
+        <p class="lead mb-4">Track your favorite movies, series, manga, and music. Rate them and build your personal collection.</p>
+        <div class="d-flex justify-content-center gap-3">
+            <a href="{% url 'login' %}" class="btn btn-primary btn-lg">Login</a>
+            <a href="{% url 'register' %}" class="btn btn-outline-primary btn-lg">Register</a>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row mb-4">
+        <div class="col">
+            <h2>Popular Media</h2>
+            <p class="text-muted">Browse and rate your favorite content</p>
+        </div>
+        {% if is_authenticated %}
+        <div class="col-auto">
+            <a href="{% url 'user_collection' %}" class="btn btn-outline-primary">My Collection</a>
+        </div>
+        {% endif %}
+    </div>
+    
+    <div class="row">
+        {% for media in media_items %}
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">{{ media.title }}</h5>
+                    <h6 class="card-subtitle mb-2 text-muted">{{ media.get_media_type_display }}</h6>
+                    
+                    {% if media.plot %}
+                    <p class="card-text">{{ media.plot|truncatewords:30 }}</p>
+                    {% endif %}
+
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            {% if media.avg_score %}
+                            <span class="badge bg-primary">Score: {{ media.avg_score|floatformat:1 }}/10</span>
+                            {% else %}
+                            <span class="badge bg-secondary">No ratings yet</span>
+                            {% endif %}
+                        </div>
+
+                        {% if is_authenticated %}
+                        <div>
+                            {% with user_rating=user_ratings|get_item:media.id %}
+                                {% if user_rating %}
+                                <span class="badge bg-info">Your rating: {{ user_rating }}/10</span>
+                                {% else %}
+                                <a href="{% url 'rate_media' media.id %}" class="btn btn-sm btn-outline-primary">Rate</a>
+                                {% endif %}
+                            {% endwith %}
+                        </div>
+                        {% else %}
+                        <div>
+                            <a href="{% url 'login' %}" class="btn btn-sm btn-outline-secondary">Login to Rate</a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <p class="text-center">No media items found.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %} 
