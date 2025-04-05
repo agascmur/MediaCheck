@@ -33,4 +33,5 @@ urlpatterns = [
     path('register/', media_views.register, name='register'),
     path('my-collection/', media_views.user_collection, name='user_collection'),
     path('rate/<int:media_id>/', media_views.rate_media, name='rate_media'),
+    path('update-state/<int:media_id>/', media_views.update_media_state, name='update_media_state'),
 ]

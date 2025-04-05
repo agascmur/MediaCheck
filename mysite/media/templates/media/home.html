@@ -45,31 +45,84 @@
                     <p class="card-text">{{ media.plot|truncatewords:30 }}</p>
                     {% endif %}
 
+                    {% if is_authenticated %}
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            {% if media.avg_score %}
-                            <span class="badge bg-primary">Score: {{ media.avg_score|floatformat:1 }}/10</span>
+                            {% with user_media=media.user_media.all|filter_by_user:user %}
+                                {% if user_media %}
+                                    {% if user_media.score is not None and user_media.state != 0 %}
+                                    <span class="badge bg-success">Rated: {{ user_media.score }}/10</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="badge bg-secondary">Not in collection</span>
+                                {% endif %}
+                            {% endwith %}
+                        </div>
+
+                        <div class="btn-group">
+                            {% with user_media=media.user_media.all|filter_by_user:user %}
+                                {% if user_media and user_media.state != 0 %}
+                                    <a href="{% url 'rate_media' media.id %}?next={{ request.path|urlencode }}" 
+                                       class="btn btn-sm btn-outline-primary">
+                                        {% if user_media.score is not None %}Update Rating{% else %}Rate{% endif %}
+                                    </a>
+                                    <button type="button" 
+                                            class="btn btn-sm btn-info dropdown-toggle"
+                                            data-bs-toggle="dropdown" 
+                                            aria-expanded="false">
+                                        {{ user_media.get_state_display_with_icon }}
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        {% for state_value, state_label in user_media_states %}
+                                        <li>
+                                            <form action="{% url 'update_media_state' media.id %}" 
+                                                  method="post" 
+                                                  class="state-update-form"
+                                                  data-media-id="{{ media.id }}">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="state" value="{{ state_value }}">
+                                                <input type="hidden" name="next" value="{{ request.path }}">
+                                                <button type="submit" 
+                                                        class="dropdown-item {% if user_media.state == state_value %}active{% endif %}">
+                                                    {% if state_value == 0 %}❔{% endif %}
+                                                    {% if state_value == 1 %}📋{% endif %}
+                                                    {% if state_value == 2 %}👁️{% endif %}
+                                                    {% if state_value == 3 %}✅{% endif %}
+                                                    {{ state_label }}
+                                                </button>
+                                            </form>
+                                        </li>
+                                        {% endfor %}
+                                    </ul>
+                                {% else %}
+                                    <form action="{% url 'update_media_state' media.id %}" 
+                                          method="post" 
+                                          class="state-update-form"
+                                          data-media-id="{{ media.id }}">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="state" value="1">
+                                        <input type="hidden" name="next" value="{{ request.path }}">
+                                        <button type="submit" 
+                                                class="btn btn-sm btn-outline-secondary">
+                                            ❔ Check
+                                        </button>
+                                    </form>
+                                {% endif %}
+                            {% endwith %}
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            {% if media.score %}
+                            <span class="badge bg-primary">Global Rating: {{ media.score|floatformat:1 }}/10</span>
                             {% else %}
                             <span class="badge bg-secondary">No ratings yet</span>
                             {% endif %}
                         </div>
-
-                        {% if is_authenticated %}
-                        <div>
-                            {% with user_rating=user_ratings|get_item:media.id %}
-                                {% if user_rating %}
-                                <span class="badge bg-info">Your rating: {{ user_rating }}/10</span>
-                                {% else %}
-                                <a href="{% url 'rate_media' media.id %}" class="btn btn-sm btn-outline-primary">Rate</a>
-                                {% endif %}
-                            {% endwith %}
-                        </div>
-                        {% else %}
-                        <div>
-                            <a href="{% url 'login' %}" class="btn btn-sm btn-outline-secondary">Login to Rate</a>
-                        </div>
-                        {% endif %}
+                        <a href="{% url 'login' %}" class="btn btn-sm btn-outline-secondary">Login to Check</a>
                     </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -80,4 +133,59 @@
         {% endfor %}
     </div>
 </div>
+
+{% if is_authenticated %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.state-update-form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const mediaId = this.dataset.mediaId;
+            const formData = new FormData(this);
+
+            fetch(this.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    const card = this.closest('.card');
+                    const btnGroup = card.querySelector('.btn-group');
+                    
+                    if (data.is_check_state) {
+                        // Update to simple Check button
+                        btnGroup.innerHTML = `
+                            <form action="/update-state/${mediaId}/" 
+                                  method="post" 
+                                  class="state-update-form"
+                                  data-media-id="${mediaId}">
+                                {% csrf_token %}
+                                <input type="hidden" name="state" value="1">
+                                <input type="hidden" name="next" value="{{ request.path }}">
+                                <button type="submit" 
+                                        class="btn btn-sm btn-outline-secondary">
+                                    ❔ Check
+                                </button>
+                            </form>
+                        `;
+                        // Remove rating badge if exists
+                        const ratingBadge = card.querySelector('.badge.bg-success');
+                        if (ratingBadge) {
+                            ratingBadge.remove();
+                        }
+                    } else {
+                        // Refresh the entire button group to show dropdown
+                        location.reload();
+                    }
+                }
+            });
+        });
+    });
+});
+</script>
+{% endif %}
 {% endblock %} 

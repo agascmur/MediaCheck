@@ -8,6 +8,12 @@
                 <div class="card-body">
                     <h2 class="card-title text-center mb-4">Rate {{ media.title }}</h2>
                     
+                    {% if error %}
+                    <div class="alert alert-danger" role="alert">
+                        {{ error }}
+                    </div>
+                    {% endif %}
+                    
                     <form method="post">
                         {% csrf_token %}
                         <input type="hidden" name="next" value="{{ next }}">
@@ -21,7 +27,7 @@
                                    min="0" 
                                    max="10" 
                                    step="0.1" 
-                                   value="{{ current_rating|default:'' }}"
+                                   value="{{ current_rating|default_if_none:'' }}"
                                    required>
                             <div class="form-text">Enter a rating between 0 and 10</div>
                         </div>

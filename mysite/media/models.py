@@ -6,26 +6,22 @@ from enum import Enum
 from django.db.models import Avg, Count
 from django.core.exceptions import ValidationError
 
-class MediaType(Enum):
-    CINEMA = 'cinema'
-    SERIES = 'series'
-    MANGA = 'manga'
-    MUSIC = 'music'
-
-    @classmethod
-    def choices(cls):
-        return [(tag.value, tag.name.capitalize()) for tag in cls]
-
 class User(AbstractUser):
     # We can add custom fields here if needed
     pass
 
 class Media(models.Model):
+    class MediaType(models.TextChoices):
+        CINEMA = 'cinema', 'Cinema'
+        SERIES = 'series', 'Series'
+        MANGA = 'manga', 'Manga'
+        MUSIC = 'music', 'Music'
+
     title = models.CharField(max_length=255, db_index=True)
     media_type = models.CharField(
         max_length=50, 
-        choices=MediaType.choices(), 
-        default=MediaType.CINEMA.value,
+        choices=MediaType.choices, 
+        default=MediaType.CINEMA,
         db_index=True
     )
     url = models.TextField(
@@ -85,9 +81,20 @@ class Media(models.Model):
         return f"{self.title} ({self.media_type})"
 
 class UserMedia(models.Model):
+    class MediaState(models.IntegerChoices):
+        CHECK = 0, 'Check'      # Unknown/unrated state
+        CHECKED = 1, 'Checked'  # Saved but not started
+        VIEWING = 2, 'Viewing'  # Currently consuming
+        DONE = 3, 'Done'        # Finished consuming
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_media')
     media = models.ForeignKey(Media, on_delete=models.CASCADE, related_name='user_media')
     added_at = models.DateTimeField(auto_now_add=True)
+    state = models.IntegerField(
+        choices=MediaState.choices,
+        default=MediaState.CHECK,
+        db_index=True
+    )
     score = models.FloatField(
         null=True, 
         blank=True,
@@ -104,9 +111,11 @@ class UserMedia(models.Model):
         indexes = [
             models.Index(fields=['user', 'media']),
             models.Index(fields=['score']),
+            models.Index(fields=['state']),
         ]
 
     def save(self, *args, **kwargs):
+        # Only validate score if it's not None
         if self.score is not None:
             if self.score < 0 or self.score > 10:
                 raise ValueError("Score must be between 0 and 10")
@@ -121,6 +130,17 @@ class UserMedia(models.Model):
             return "Not rated"
         return f"Rated {self.score}/10"
 
+    def get_state_display_with_icon(self):
+        """Get the state display with an appropriate icon"""
+        icons = {
+            self.MediaState.CHECK: '❔',    # Question mark for unknown
+            self.MediaState.CHECKED: '📋',  # Clipboard for saved
+            self.MediaState.VIEWING: '👁️',  # Eye for viewing
+            self.MediaState.DONE: '✅',     # Checkmark for done
+        }
+        return f"{icons[self.state]} {self.get_state_display()}"
+
     def __str__(self):
+        state_str = f" [{self.get_state_display()}]"
         rating_str = f" rated {self.score}" if self.score is not None else ""
-        return f"{self.user.username}'s {self.media.title}{rating_str}"
+        return f"{self.user.username}'s {self.media.title}{state_str}{rating_str}"

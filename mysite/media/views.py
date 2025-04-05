@@ -3,6 +3,7 @@ from django.db.models import Avg
 from django.contrib.auth import login
 from .models import Media, UserMedia, User
 from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
 
 def home(request):
     # Get all media items with their average scores
@@ -26,13 +27,18 @@ def home(request):
         'media_items': media_items,
         'user_ratings': user_ratings,
         'is_authenticated': hasattr(request, 'user') and request.user.is_authenticated,
+        'user_media_states': UserMedia.MediaState.choices,
     }
     return render(request, 'media/home.html', context)
 
 @login_required
 def user_collection(request):
-    # Get all media items in the user's collection
-    user_media = UserMedia.objects.filter(user=request.user).select_related('media')
+    # Get all media items in the user's collection except those with state CHECK
+    user_media = UserMedia.objects.filter(
+        user=request.user
+    ).exclude(
+        state=UserMedia.MediaState.CHECK
+    ).select_related('media')
     
     # Get user's ratings
     user_ratings = {
@@ -44,6 +50,7 @@ def user_collection(request):
         'user_media': user_media,
         'user_ratings': user_ratings,
         'is_authenticated': True,
+        'user_media_states': UserMedia.MediaState.choices,
     }
     return render(request, 'media/user_collection.html', context)
 
@@ -52,17 +59,28 @@ def rate_media(request, media_id):
     media = get_object_or_404(Media, id=media_id)
     
     if request.method == 'POST':
-        score = float(request.POST.get('score', 0))
+        score = request.POST.get('score')
+        # Convert score to float if it's not empty
+        if score is not None and score != '':
+            score = float(score)
+            if score < 0 or score > 10:
+                return render(request, 'media/rate_media.html', {
+                    'media': media,
+                    'error': 'Score must be between 0 and 10'
+                })
+        else:
+            score = None
         
         # Get or create UserMedia entry
         user_media, created = UserMedia.objects.get_or_create(
             user=request.user,
-            media=media
+            media=media,
+            defaults={'score': score}
         )
         
-        # Update the rating
-        user_media.score = score
-        user_media.save()
+        if not created:
+            user_media.score = score
+            user_media.save()
         
         # Redirect back to the previous page
         next_url = request.POST.get('next')
@@ -85,6 +103,47 @@ def rate_media(request, media_id):
         'is_authenticated': True,
     }
     return render(request, 'media/rate_media.html', context)
+
+@login_required
+def update_media_state(request, media_id):
+    if request.method == 'POST':
+        media = get_object_or_404(Media, id=media_id)
+        new_state = int(request.POST.get('state', 0))
+        
+        # Get or create UserMedia entry
+        user_media, created = UserMedia.objects.get_or_create(
+            user=request.user,
+            media=media,
+            defaults={'state': new_state}
+        )
+        
+        if not created:
+            user_media.state = new_state
+            # If state is changed to CHECK, clear the rating
+            if new_state == UserMedia.MediaState.CHECK:
+                user_media.score = None
+            user_media.save()
+            
+            # If rating was cleared, recalculate media's average score
+            if new_state == UserMedia.MediaState.CHECK:
+                media.calculate_score()
+        
+        # If this is an AJAX request, return JSON response
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            response_data = {
+                'status': 'success',
+                'state_display': user_media.get_state_display_with_icon(),
+                'state': new_state,
+                'is_check_state': new_state == UserMedia.MediaState.CHECK,
+                'score': user_media.score
+            }
+            return JsonResponse(response_data)
+            
+        # Redirect back to the previous page
+        next_url = request.POST.get('next')
+        if next_url and next_url.startswith('/'):  # Only redirect to internal URLs
+            return redirect(next_url)
+        return redirect('home')
 
 def register(request):
     if request.method == 'POST':
