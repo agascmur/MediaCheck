@@ -6,26 +6,22 @@ from enum import Enum
 from django.db.models import Avg, Count
 from django.core.exceptions import ValidationError
 
-class MediaType(Enum):
-    CINEMA = 'cinema'
-    SERIES = 'series'
-    MANGA = 'manga'
-    MUSIC = 'music'
-
-    @classmethod
-    def choices(cls):
-        return [(tag.value, tag.name.capitalize()) for tag in cls]
-
 class User(AbstractUser):
     # We can add custom fields here if needed
     pass
 
 class Media(models.Model):
+    class MediaType(models.TextChoices):
+        CINEMA = 'cinema', 'Cinema'
+        SERIES = 'series', 'Series'
+        MANGA = 'manga', 'Manga'
+        MUSIC = 'music', 'Music'
+
     title = models.CharField(max_length=255, db_index=True)
     media_type = models.CharField(
         max_length=50, 
-        choices=MediaType.choices(), 
-        default=MediaType.CINEMA.value,
+        choices=MediaType.choices, 
+        default=MediaType.CINEMA,
         db_index=True
     )
     url = models.TextField(
