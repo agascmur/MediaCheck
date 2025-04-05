@@ -27,23 +27,59 @@
 
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            {% with user_rating=user_ratings|get_item:user_media.media.id %}
-                                {% if user_rating %}
-                                <span class="badge bg-info">Your rating: {{ user_rating }}/10</span>
-                                {% else %}
-                                <span class="badge bg-secondary">Not rated yet</span>
-                                {% endif %}
-                            {% endwith %}
+                            {% if user_media.score is not None and user_media.state != 0 %}
+                            <span class="badge bg-success">Rated: {{ user_media.score }}/10</span>
+                            {% endif %}
                         </div>
 
-                        <div>
-                            {% with user_rating=user_ratings|get_item:user_media.media.id %}
-                                {% if user_rating %}
-                                <a href="{% url 'rate_media' user_media.media.id %}" class="btn btn-sm btn-outline-primary">Update Rating</a>
-                                {% else %}
-                                <a href="{% url 'rate_media' user_media.media.id %}" class="btn btn-sm btn-outline-primary">Rate</a>
-                                {% endif %}
-                            {% endwith %}
+                        <div class="btn-group">
+                            {% if user_media.state != 0 %}
+                                <a href="{% url 'rate_media' user_media.media.id %}?next={{ request.path|urlencode }}" 
+                                   class="btn btn-sm btn-outline-primary">
+                                    {% if user_media.score is not None %}Update Rating{% else %}Rate{% endif %}
+                                </a>
+                                <button type="button" 
+                                        class="btn btn-sm btn-info dropdown-toggle"
+                                        data-bs-toggle="dropdown" 
+                                        aria-expanded="false">
+                                    {{ user_media.get_state_display_with_icon }}
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    {% for state_value, state_label in user_media_states %}
+                                    <li>
+                                        <form action="{% url 'update_media_state' user_media.media.id %}" 
+                                              method="post" 
+                                              class="state-update-form"
+                                              data-media-id="{{ user_media.media.id }}">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="state" value="{{ state_value }}">
+                                            <input type="hidden" name="next" value="{{ request.path }}">
+                                            <button type="submit" 
+                                                    class="dropdown-item {% if user_media.state == state_value %}active{% endif %}">
+                                                {% if state_value == 0 %}❔{% endif %}
+                                                {% if state_value == 1 %}📋{% endif %}
+                                                {% if state_value == 2 %}👁️{% endif %}
+                                                {% if state_value == 3 %}✅{% endif %}
+                                                {{ state_label }}
+                                            </button>
+                                        </form>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                            {% else %}
+                                <form action="{% url 'update_media_state' user_media.media.id %}" 
+                                      method="post" 
+                                      class="state-update-form"
+                                      data-media-id="{{ user_media.media.id }}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="state" value="1">
+                                    <input type="hidden" name="next" value="{{ request.path }}">
+                                    <button type="submit" 
+                                            class="btn btn-sm btn-outline-secondary">
+                                        ❔ Check
+                                    </button>
+                                </form>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -56,4 +92,53 @@
         {% endfor %}
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.state-update-form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const mediaId = this.dataset.mediaId;
+            const formData = new FormData(this);
+
+            fetch(this.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    if (data.is_check_state) {
+                        // If state is changed to CHECK, remove the card with animation
+                        const card = this.closest('.col-md-4');
+                        card.style.transition = 'opacity 0.3s ease-out';
+                        card.style.opacity = '0';
+                        setTimeout(() => {
+                            card.remove();
+                            // If no cards left, show the empty message
+                            const mediaCards = document.querySelectorAll('.col-md-4');
+                            const existingEmptyMessage = document.querySelector('.col-12');
+                            if (mediaCards.length === 0 && !existingEmptyMessage) {
+                                const cardsContainer = document.querySelector('.row');
+                                const emptyMessage = document.createElement('div');
+                                emptyMessage.className = 'col-12';
+                                emptyMessage.innerHTML = '<p class="text-center">Your collection is empty. <a href="/">Browse media</a> to add items to your collection.</p>';
+                                cardsContainer.appendChild(emptyMessage);
+                            }
+                        }, 300);
+                    } else {
+                        // Otherwise just update the state button
+                        const card = this.closest('.card');
+                        const stateButton = card.querySelector('.dropdown-toggle');
+                        stateButton.innerHTML = data.state_display;
+                    }
+                }
+            });
+        });
+    });
+});
+</script>
 {% endblock %} 
