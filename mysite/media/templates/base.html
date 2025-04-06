@@ -17,9 +17,6 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% media_url 'home' %}">Home</a>
-                    </li>
                     {% if is_authenticated %}
                     <li class="nav-item">
                         <a class="nav-link" href="{% media_url 'user_collection' %}">My Collection</a>

@@ -77,6 +77,15 @@ class Command(BaseCommand):
             is_active=True,
             is_staff=False
         )
+        user4 = User.objects.create(
+            username="aaa",
+            email="aaa@example.com",
+            password=make_password("aaa"),
+            first_name="aaa",
+            last_name="aaa",
+            is_active=True,
+            is_staff=False
+        )
 
         # Create Media entries with realistic data
         media1 = Media.objects.create(

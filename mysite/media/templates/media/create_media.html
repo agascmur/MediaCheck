@@ -31,6 +31,7 @@
                                 {{ form.title.errors }}
                             </div>
                             {% endif %}
+                            <div class="form-text">Enter the exact title as it appears officially</div>
                         </div>
 
                         <div class="mb-3">
@@ -41,6 +42,7 @@
                                 {{ form.media_type.errors }}
                             </div>
                             {% endif %}
+                            <div class="form-text">Select the correct media type to help others find it</div>
                         </div>
 
                         <div class="mb-3">
@@ -51,7 +53,7 @@
                                 {{ form.url.errors }}
                             </div>
                             {% endif %}
-                            <div class="form-text">Optional. Must be a valid URL starting with http:// or https://</div>
+                            <div class="form-text">Optional. Link to official website or reliable source</div>
                         </div>
 
                         <div class="mb-3">
@@ -62,7 +64,7 @@
                                 {{ form.plot.errors }}
                             </div>
                             {% endif %}
-                            <div class="form-text">Optional. Brief description of the media</div>
+                            <div class="form-text">Write a clear description that helps others understand the media</div>
                         </div>
 
                         <div class="mb-3">
@@ -73,7 +75,7 @@
                                 {{ form.chapters.errors }}
                             </div>
                             {% endif %}
-                            <div class="form-text">Optional. For manga/series only. Example: "700 chapters"</div>
+                            <div class="form-text">For manga/series only. Enter the total number of chapters</div>
                         </div>
 
                         <div class="mb-3">
@@ -84,7 +86,7 @@
                                 {{ form.quotes.errors }}
                             </div>
                             {% endif %}
-                            <div class="form-text">Optional. Enter one quote per line</div>
+                            <div class="form-text">Add memorable quotes that represent the media well (one per line)</div>
                         </div>
 
                         <div class="d-grid gap-2">
@@ -100,8 +102,14 @@
 
 {% block extra_js %}
 <script>
-// Add Bootstrap validation classes
+// Initialize Bootstrap tooltips
 document.addEventListener('DOMContentLoaded', function() {
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+
+    // Add Bootstrap validation classes
     const forms = document.querySelectorAll('.needs-validation');
     Array.from(forms).forEach(form => {
         form.addEventListener('submit', event => {
