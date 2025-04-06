@@ -4,6 +4,8 @@ from django.contrib.auth import login
 from .models import Media, UserMedia, User
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
+from django.contrib import messages
+from .forms import MediaForm
 
 def home(request):
     # Get all media items with their average scores
@@ -169,6 +171,41 @@ def register(request):
         user.save()
         
         login(request, user)
-        return redirect('user_collection')  # Redirect to user's collection after registration
+        return redirect('media:user_collection')  # Update to use namespace
     
-    return render(request, 'media/register.html')
+    return render(request, 'media/register.html', {
+        'is_authenticated': request.user.is_authenticated
+    })
+
+@login_required
+def create_media(request):
+    if request.method == 'POST':
+        form = MediaForm(request.POST)
+        if form.is_valid():
+            # Check if media with same title and type already exists
+            title = form.cleaned_data['title']
+            media_type = form.cleaned_data['media_type']
+            
+            if Media.objects.filter(title__iexact=title, media_type=media_type).exists():
+                messages.error(request, 'A media with this title and type already exists.')
+                return render(request, 'media/create_media.html', {'form': form})
+            
+            # Create the media entry
+            media = form.save()
+            
+            # Create UserMedia entry for the creator
+            UserMedia.objects.create(
+                user=request.user,
+                media=media,
+                state=UserMedia.MediaState.CHECKED
+            )
+            
+            messages.success(request, 'Media created successfully!')
+            return redirect('media:home')
+    else:
+        form = MediaForm()
+    
+    return render(request, 'media/create_media.html', {
+        'form': form,
+        'is_authenticated': request.user.is_authenticated
+    })

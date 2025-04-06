@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load media_urls %}
 
 {% block content %}
 <div class="container mt-4">
@@ -37,7 +38,7 @@
                             {% if next %}
                             <a href="{{ next }}" class="btn btn-outline-secondary">Cancel</a>
                             {% else %}
-                            <a href="{% url 'home' %}" class="btn btn-outline-secondary">Cancel</a>
+                            <a href="{% media_url 'home' %}" class="btn btn-outline-secondary">Cancel</a>
                             {% endif %}
                         </div>
                     </form>

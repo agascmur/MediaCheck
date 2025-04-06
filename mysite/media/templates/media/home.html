@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load media_tags %}
+{% load media_urls %}
 
 {% block content %}
 <div class="container mt-4">
@@ -15,8 +16,8 @@
         <h1 class="display-4 mb-4">Welcome to MediaCheck</h1>
         <p class="lead mb-4">Track your favorite movies, series, manga, and music. Rate them and build your personal collection.</p>
         <div class="d-flex justify-content-center gap-3">
-            <a href="{% url 'login' %}" class="btn btn-primary btn-lg">Login</a>
-            <a href="{% url 'register' %}" class="btn btn-outline-primary btn-lg">Register</a>
+            <a href="{% media_url 'login' %}" class="btn btn-primary btn-lg">Login</a>
+            <a href="{% media_url 'register' %}" class="btn btn-outline-primary btn-lg">Register</a>
         </div>
     </div>
     {% endif %}
@@ -28,7 +29,7 @@
         </div>
         {% if is_authenticated %}
         <div class="col-auto">
-            <a href="{% url 'user_collection' %}" class="btn btn-outline-primary">My Collection</a>
+            <a href="{% media_url 'user_collection' %}" class="btn btn-outline-primary">My Collection</a>
         </div>
         {% endif %}
     </div>
@@ -62,7 +63,7 @@
                         <div class="btn-group">
                             {% with user_media=media.user_media.all|filter_by_user:user %}
                                 {% if user_media and user_media.state != 0 %}
-                                    <a href="{% url 'rate_media' media.id %}?next={{ request.path|urlencode }}" 
+                                    <a href="{% media_url_with_next 'rate_media' request.path media.id %}" 
                                        class="btn btn-sm btn-outline-primary">
                                         {% if user_media.score is not None %}Update Rating{% else %}Rate{% endif %}
                                     </a>
@@ -75,7 +76,7 @@
                                     <ul class="dropdown-menu dropdown-menu-end">
                                         {% for state_value, state_label in user_media_states %}
                                         <li>
-                                            <form action="{% url 'update_media_state' media.id %}" 
+                                            <form action="{% media_url 'update_media_state' media.id %}" 
                                                   method="post" 
                                                   class="state-update-form"
                                                   data-media-id="{{ media.id }}">
@@ -95,7 +96,7 @@
                                         {% endfor %}
                                     </ul>
                                 {% else %}
-                                    <form action="{% url 'update_media_state' media.id %}" 
+                                    <form action="{% media_url 'update_media_state' media.id %}" 
                                           method="post" 
                                           class="state-update-form"
                                           data-media-id="{{ media.id }}">
@@ -120,7 +121,7 @@
                             <span class="badge bg-secondary">No ratings yet</span>
                             {% endif %}
                         </div>
-                        <a href="{% url 'login' %}" class="btn btn-sm btn-outline-secondary">Login to Check</a>
+                        <a href="{% media_url 'login' %}" class="btn btn-sm btn-outline-secondary">Login to Check</a>
                     </div>
                     {% endif %}
                 </div>

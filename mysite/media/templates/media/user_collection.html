@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load media_tags %}
+{% load media_urls %}
 
 {% block content %}
 <div class="container mt-4">
@@ -9,7 +10,7 @@
 
     <div class="row mb-4">
         <div class="col">
-            <a href="{% url 'home' %}" class="btn btn-outline-primary">Browse All Media</a>
+            <a href="{% media_url 'home' %}" class="btn btn-outline-primary">Browse All Media</a>
         </div>
     </div>
     
@@ -34,7 +35,7 @@
 
                         <div class="btn-group">
                             {% if user_media.state != 0 %}
-                                <a href="{% url 'rate_media' user_media.media.id %}?next={{ request.path|urlencode }}" 
+                                <a href="{% media_url_with_next 'rate_media' request.path user_media.media.id %}" 
                                    class="btn btn-sm btn-outline-primary">
                                     {% if user_media.score is not None %}Update Rating{% else %}Rate{% endif %}
                                 </a>
@@ -47,7 +48,7 @@
                                 <ul class="dropdown-menu dropdown-menu-end">
                                     {% for state_value, state_label in user_media_states %}
                                     <li>
-                                        <form action="{% url 'update_media_state' user_media.media.id %}" 
+                                        <form action="{% media_url 'update_media_state' user_media.media.id %}" 
                                               method="post" 
                                               class="state-update-form"
                                               data-media-id="{{ user_media.media.id }}">
@@ -67,7 +68,7 @@
                                     {% endfor %}
                                 </ul>
                             {% else %}
-                                <form action="{% url 'update_media_state' user_media.media.id %}" 
+                                <form action="{% media_url 'update_media_state' user_media.media.id %}" 
                                       method="post" 
                                       class="state-update-form"
                                       data-media-id="{{ user_media.media.id }}">
@@ -87,7 +88,7 @@
         </div>
         {% empty %}
         <div class="col-12">
-            <p class="text-center">Your collection is empty. <a href="{% url 'home' %}">Browse media</a> to add items to your collection.</p>
+            <p class="text-center">Your collection is empty. <a href="{% media_url 'home' %}">Browse media</a> to add items to your collection.</p>
         </div>
         {% endfor %}
     </div>
@@ -111,29 +112,33 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
+                    const card = this.closest('.card');
+                    const btnGroup = card.querySelector('.btn-group');
+                    
                     if (data.is_check_state) {
-                        // If state is changed to CHECK, remove the card with animation
-                        const card = this.closest('.col-md-4');
-                        card.style.transition = 'opacity 0.3s ease-out';
-                        card.style.opacity = '0';
-                        setTimeout(() => {
-                            card.remove();
-                            // If no cards left, show the empty message
-                            const mediaCards = document.querySelectorAll('.col-md-4');
-                            const existingEmptyMessage = document.querySelector('.col-12');
-                            if (mediaCards.length === 0 && !existingEmptyMessage) {
-                                const cardsContainer = document.querySelector('.row');
-                                const emptyMessage = document.createElement('div');
-                                emptyMessage.className = 'col-12';
-                                emptyMessage.innerHTML = '<p class="text-center">Your collection is empty. <a href="/">Browse media</a> to add items to your collection.</p>';
-                                cardsContainer.appendChild(emptyMessage);
-                            }
-                        }, 300);
+                        // Update to simple Check button
+                        btnGroup.innerHTML = `
+                            <form action="/update-state/${mediaId}/" 
+                                  method="post" 
+                                  class="state-update-form"
+                                  data-media-id="${mediaId}">
+                                {% csrf_token %}
+                                <input type="hidden" name="state" value="1">
+                                <input type="hidden" name="next" value="{{ request.path }}">
+                                <button type="submit" 
+                                        class="btn btn-sm btn-outline-secondary">
+                                    ❔ Check
+                                </button>
+                            </form>
+                        `;
+                        // Remove rating badge if exists
+                        const ratingBadge = card.querySelector('.badge.bg-success');
+                        if (ratingBadge) {
+                            ratingBadge.remove();
+                        }
                     } else {
-                        // Otherwise just update the state button
-                        const card = this.closest('.card');
-                        const stateButton = card.querySelector('.dropdown-toggle');
-                        stateButton.innerHTML = data.state_display;
+                        // Refresh the entire button group to show dropdown
+                        location.reload();
                     }
                 }
             });
