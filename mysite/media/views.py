@@ -8,6 +8,9 @@ from django.contrib import messages
 from .forms import MediaForm
 from rest_framework import viewsets, permissions
 from .serializers import MediaSerializer, UserMediaSerializer
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.authtoken.models import Token
 
 def home(request):
     # Get all media items with their average scores
@@ -17,7 +20,7 @@ def home(request):
 
     # Get user's ratings if user is logged in
     user_ratings = {}
-    if hasattr(request, 'user') and request.user.is_authenticated:
+    if request.user.is_authenticated:
         # Get all ratings for the current user
         ratings = UserMedia.objects.filter(
             user=request.user,
@@ -30,7 +33,7 @@ def home(request):
     context = {
         'media_items': media_items,
         'user_ratings': user_ratings,
-        'is_authenticated': hasattr(request, 'user') and request.user.is_authenticated,
+        'is_authenticated': request.user.is_authenticated,
         'user_media_states': UserMedia.MediaState.choices,
     }
     return render(request, 'media/home.html', context)
@@ -172,8 +175,11 @@ def register(request):
         user.set_password(password)
         user.save()
         
+        # Create a token for the user
+        Token.objects.create(user=user)
+        
         login(request, user)
-        return redirect('media:user_collection')  # Update to use namespace
+        return redirect('media:user_collection')
     
     return render(request, 'media/register.html', {
         'is_authenticated': request.user.is_authenticated
@@ -213,23 +219,28 @@ def create_media(request):
     })
 
 class MediaViewSet(viewsets.ModelViewSet):
+    queryset = Media.objects.all()
     serializer_class = MediaSerializer
-    permission_classes = [permissions.AllowAny]
-    
+    permission_classes = [permissions.IsAuthenticated]
+
     def get_queryset(self):
+        # Filter media based on user's collection if requested
+        user_collection = self.request.query_params.get('user_collection', None)
+        if user_collection and self.request.user.is_authenticated:
+            return Media.objects.filter(user_media__user=self.request.user)
         return Media.objects.all()
 
 class UserMediaViewSet(viewsets.ModelViewSet):
     serializer_class = UserMediaSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
-        if self.request.user.is_authenticated:
-            return UserMedia.objects.filter(user=self.request.user)
-        return UserMedia.objects.none()  # Return empty queryset for anonymous users
+        return UserMedia.objects.filter(user=self.request.user)
     
     def perform_create(self, serializer):
-        if self.request.user.is_authenticated:
-            serializer.save(user=self.request.user)
-        else:
-            raise permissions.exceptions.NotAuthenticated()
+        serializer.save(user=self.request.user)
+
+    @action(detail=False, methods=['get'])
+    def get_token(self, request):
+        token, created = Token.objects.get_or_create(user=request.user)
+        return Response({'token': token.key})

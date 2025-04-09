@@ -2,6 +2,7 @@ from django.urls import path, include
 from django.contrib.auth import views as auth_views
 from rest_framework.routers import DefaultRouter
 from . import views
+from rest_framework.authtoken.views import obtain_auth_token
 
 app_name = 'media'
 
@@ -29,4 +30,5 @@ urlpatterns = [
     path('rate/<int:media_id>/', views.rate_media, name='rate_media'),
     path('update-state/<int:media_id>/', views.update_media_state, name='update_media_state'),
     path('api/', include(router.urls)),
+    path('api-token-auth/', obtain_auth_token, name='api_token_auth'),
 ] 

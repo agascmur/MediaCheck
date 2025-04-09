@@ -1,5 +1,5 @@
 import SQLite from 'react-native-sqlite-storage';
-import { Media, UserMedia, MediaType, MediaState } from '../types';
+import { Media, UserMedia, MediaType, MediaState, MediaWithUserData } from '../types';
 
 // Open the database
 const db = SQLite.openDatabase(
@@ -11,14 +11,14 @@ const db = SQLite.openDatabase(
     console.log('Database opened successfully');
     initializeDatabase();
   },
-  (error) => {
+  (error: any) => {
     console.error('Error opening database:', error);
   }
 );
 
 // Initialize database tables
 const initializeDatabase = () => {
-  db.transaction((tx) => {
+  db.transaction((tx: any) => {
     // Create Media table
     tx.executeSql(
       `CREATE TABLE IF NOT EXISTS media (
@@ -52,7 +52,7 @@ const initializeDatabase = () => {
 // Media operations
 export const addMedia = (media: Media): Promise<number> => {
   return new Promise((resolve, reject) => {
-    db.transaction((tx) => {
+    db.transaction((tx: any) => {
       tx.executeSql(
         `INSERT INTO media (title, media_type, url, plot, chapters, quotes, score)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -65,10 +65,10 @@ export const addMedia = (media: Media): Promise<number> => {
           media.quotes ? JSON.stringify(media.quotes) : null,
           media.score || null,
         ],
-        (_, result) => {
+        (_: any, result: any) => {
           resolve(result.insertId);
         },
-        (_, error) => {
+        (_: any, error: any) => {
           reject(error);
           return false;
         }
@@ -79,11 +79,11 @@ export const addMedia = (media: Media): Promise<number> => {
 
 export const getMedia = (): Promise<Media[]> => {
   return new Promise((resolve, reject) => {
-    db.transaction((tx) => {
+    db.transaction((tx: any) => {
       tx.executeSql(
         'SELECT * FROM media ORDER BY created_at DESC',
         [],
-        (_, result) => {
+        (_: any, result: any) => {
           const mediaList: Media[] = [];
           for (let i = 0; i < result.rows.length; i++) {
             const media = result.rows.item(i);
@@ -92,7 +92,7 @@ export const getMedia = (): Promise<Media[]> => {
           }
           resolve(mediaList);
         },
-        (_, error) => {
+        (_: any, error: any) => {
           reject(error);
           return false;
         }
@@ -104,15 +104,15 @@ export const getMedia = (): Promise<Media[]> => {
 // UserMedia operations
 export const addUserMedia = (userMedia: UserMedia): Promise<number> => {
   return new Promise((resolve, reject) => {
-    db.transaction((tx) => {
+    db.transaction((tx: any) => {
       tx.executeSql(
         `INSERT INTO user_media (media_id, state, score)
          VALUES (?, ?, ?)`,
         [userMedia.media_id, userMedia.state, userMedia.score || null],
-        (_, result) => {
+        (_: any, result: any) => {
           resolve(result.insertId);
         },
-        (_, error) => {
+        (_: any, error: any) => {
           reject(error);
           return false;
         }
@@ -123,7 +123,7 @@ export const addUserMedia = (userMedia: UserMedia): Promise<number> => {
 
 export const updateUserMedia = (userMedia: UserMedia): Promise<void> => {
   return new Promise((resolve, reject) => {
-    db.transaction((tx) => {
+    db.transaction((tx: any) => {
       tx.executeSql(
         `UPDATE user_media 
          SET state = ?, score = ?, updated_at = CURRENT_TIMESTAMP
@@ -132,7 +132,7 @@ export const updateUserMedia = (userMedia: UserMedia): Promise<void> => {
         () => {
           resolve();
         },
-        (_, error) => {
+        (_: any, error: any) => {
           reject(error);
           return false;
         }
@@ -143,18 +143,18 @@ export const updateUserMedia = (userMedia: UserMedia): Promise<void> => {
 
 export const getUserMedia = (): Promise<UserMedia[]> => {
   return new Promise((resolve, reject) => {
-    db.transaction((tx) => {
+    db.transaction((tx: any) => {
       tx.executeSql(
         'SELECT * FROM user_media ORDER BY updated_at DESC',
         [],
-        (_, result) => {
+        (_: any, result: any) => {
           const userMediaList: UserMedia[] = [];
           for (let i = 0; i < result.rows.length; i++) {
             userMediaList.push(result.rows.item(i));
           }
           resolve(userMediaList);
         },
-        (_, error) => {
+        (_: any, error: any) => {
           reject(error);
           return false;
         }
@@ -165,14 +165,14 @@ export const getUserMedia = (): Promise<UserMedia[]> => {
 
 export const getMediaWithUserData = (): Promise<MediaWithUserData[]> => {
   return new Promise((resolve, reject) => {
-    db.transaction((tx) => {
+    db.transaction((tx: any) => {
       tx.executeSql(
         `SELECT m.*, um.state as userState, um.score as userScore
          FROM media m
          LEFT JOIN user_media um ON m.id = um.media_id
          ORDER BY m.created_at DESC`,
         [],
-        (_, result) => {
+        (_: any, result: any) => {
           const mediaList: MediaWithUserData[] = [];
           for (let i = 0; i < result.rows.length; i++) {
             const media = result.rows.item(i);
@@ -181,7 +181,7 @@ export const getMediaWithUserData = (): Promise<MediaWithUserData[]> => {
           }
           resolve(mediaList);
         },
-        (_, error) => {
+        (_: any, error: any) => {
           reject(error);
           return false;
         }

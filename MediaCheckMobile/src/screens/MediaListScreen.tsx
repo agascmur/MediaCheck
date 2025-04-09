@@ -38,7 +38,7 @@ export const MediaListScreen: React.FC<Props> = ({ navigation }) => {
   const renderMediaItem = ({ item }: { item: MediaWithUserData }) => (
     <TouchableOpacity
       style={styles.mediaItem}
-      onPress={() => navigation.navigate('MediaDetail', { mediaId: item.id! })}
+      onPress={() => navigation.navigate('MediaDetail', { mediaId: item.id!.toString() })}
     >
       <Text style={styles.title}>{item.title}</Text>
       <Text style={styles.type}>{item.media_type}</Text>
