@@ -37,19 +37,30 @@ export const getMedia = async (): Promise<Media[]> => {
 
 export const addMedia = async (media: Media): Promise<void> => {
   return new Promise((resolve, reject) => {
-    db.runAsync(
-      `INSERT INTO media (id, title, media_type, plot, chapters, quotes, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?);`,
-      [
-        media.id ?? null,
-        media.title,
-        media.media_type,
-        media.plot ?? null,
-        media.chapters ?? null,
-        media.quotes ? JSON.stringify(media.quotes) : null,
-        media.created_at ?? null
-      ]
-    ).then(() => resolve()).catch(reject);
+    try {
+      db.runAsync(
+        `INSERT INTO media (id, title, media_type, plot, chapters, quotes, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?);`,
+        [
+          media.id ?? null,
+          media.title,
+          media.media_type,
+          media.plot ?? null,
+          media.chapters ?? null,
+          media.quotes ? JSON.stringify(media.quotes) : null,
+          media.created_at ?? new Date().toISOString()
+        ]
+      ).then(() => {
+        console.log('Media added successfully:', media);
+        resolve();
+      }).catch((error) => {
+        console.error('Error adding media to database:', error);
+        reject(error);
+      });
+    } catch (error) {
+      console.error('Error in addMedia:', error);
+      reject(error);
+    }
   });
 };
 
@@ -62,6 +73,7 @@ export const getUserMedia = async (): Promise<UserMedia[]> => {
 
 export const addUserMedia = async (userMedia: UserMedia): Promise<void> => {
   return new Promise((resolve, reject) => {
+    const currentTime = new Date().toISOString();
     db.runAsync(
       `INSERT INTO user_media (media_id, state, score, updated_at)
        VALUES (?, ?, ?, ?);`,
@@ -69,7 +81,7 @@ export const addUserMedia = async (userMedia: UserMedia): Promise<void> => {
         userMedia.media_id,
         userMedia.state !== undefined ? Number(userMedia.state) : null,
         userMedia.score !== undefined ? Number(userMedia.score) : null,
-        userMedia.updated_at ?? null
+        currentTime  // Always set the current time for new entries
       ]
     ).then(() => resolve()).catch(reject);
   });
@@ -77,6 +89,7 @@ export const addUserMedia = async (userMedia: UserMedia): Promise<void> => {
 
 export const updateUserMedia = async (userMedia: UserMedia): Promise<void> => {
   return new Promise((resolve, reject) => {
+    const currentTime = new Date().toISOString();
     db.runAsync(
       `UPDATE user_media 
        SET state = ?, score = ?, updated_at = ?
@@ -84,7 +97,7 @@ export const updateUserMedia = async (userMedia: UserMedia): Promise<void> => {
       [
         userMedia.state !== undefined ? Number(userMedia.state) : null,
         userMedia.score !== undefined ? Number(userMedia.score) : null,
-        userMedia.updated_at ?? null,
+        currentTime,  // Always update the timestamp
         userMedia.media_id
       ]
     ).then(() => resolve()).catch(reject);

@@ -7,6 +7,8 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "sdkVersion": "52.0.0",
+    "newArchEnabled": true,
+    "hostUri": "localhost:8081",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",

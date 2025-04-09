@@ -1,9 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types/navigation';
 import { Media, MediaType } from '../types';
 import { addMedia } from '../services/database';
+import { addMediaToAPI } from '../services/api';
+import { addUserMedia } from '../services/database';
+import { MediaState } from '../types';
+import { addUserMediaToAPI } from '../services/api';
+import { deleteMediaFromAPI } from '../services/api';
 
 type AddMediaScreenNavigationProp = StackNavigationProp<RootStackParamList, 'AddMedia'>;
 
@@ -20,19 +25,99 @@ export const AddMediaScreen: React.FC<Props> = ({ navigation }) => {
     chapters: '',
     quotes: [],
   });
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
+    if (!media.title || !media.media_type) {
+      Alert.alert('Error', 'Title and media type are required');
+      return;
+    }
+
+    setLoading(true);
+    let newMedia;
     try {
-      if (!media.title || !media.media_type) {
-        alert('Title and media type are required');
-        return;
+      // First post to API
+      newMedia = await addMediaToAPI(media as Media);
+      console.log('Media added to API:', newMedia);
+      
+      if (!newMedia.id) {
+        throw new Error('Media ID not returned from API');
+      }
+      
+      // Then add to local database with the ID from the API response
+      await addMedia({
+        ...newMedia,
+        id: newMedia.id,
+      });
+      console.log('Media added to local database');
+      
+      // Create initial user media entry
+      const userMedia = {
+        media_id: newMedia.id,
+        state: MediaState.CHECK,
+        score: undefined,
+        updated_at: new Date().toISOString()
+      };
+      
+      // Add to API first
+      const apiUserMedia = await addUserMediaToAPI(userMedia);
+      console.log('User media added to API:', apiUserMedia);
+      
+      // Then add to local database with the correct structure
+      await addUserMedia({
+        id: apiUserMedia.id,
+        media_id: apiUserMedia.media_id,
+        state: apiUserMedia.state,
+        score: apiUserMedia.score,
+        updated_at: apiUserMedia.updated_at
+      });
+      console.log('User media added to local database');
+      
+      navigation.goBack();
+    } catch (error: any) {
+      console.error('Error adding media:', error);
+      
+      // If we have a media ID but user media creation failed, we need to clean up
+      if (newMedia?.id) {
+        try {
+          await deleteMediaFromAPI(newMedia.id);
+          console.log('Cleanup successful: Media deleted from API');
+        } catch (cleanupError) {
+          console.error('Error during cleanup:', cleanupError);
+        }
       }
 
-      await addMedia(media as Media);
-      navigation.goBack();
-    } catch (error) {
-      console.error('Error adding media:', error);
-      alert('Error adding media. Please try again.');
+      if (error.response?.data?.title) {
+        // Handle duplicate media error
+        Alert.alert(
+          'Error',
+          error.response.data.title,
+          [{ text: 'OK' }]
+        );
+      } else if (error.response?.data?.media_id) {
+        // Handle user media creation error
+        Alert.alert(
+          'Error',
+          error.response.data.media_id,
+          [{ text: 'OK' }]
+        );
+      } else if (error.response?.data?.non_field_errors) {
+        // Handle other validation errors
+        Alert.alert(
+          'Error',
+          error.response.data.non_field_errors[0],
+          [{ text: 'OK' }]
+        );
+      } else {
+        // Handle other errors
+        Alert.alert(
+          'Error',
+          'Error adding media. Please try again.',
+          [{ text: 'OK' }]
+        );
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -97,8 +182,14 @@ export const AddMediaScreen: React.FC<Props> = ({ navigation }) => {
           placeholder="Enter chapters"
         />
 
-        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-          <Text style={styles.submitButtonText}>Add Media</Text>
+        <TouchableOpacity 
+          style={[styles.submitButton, loading && styles.submitButtonDisabled]} 
+          onPress={handleSubmit}
+          disabled={loading}
+        >
+          <Text style={styles.submitButtonText}>
+            {loading ? 'Adding...' : 'Add Media'}
+          </Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -160,5 +251,8 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  submitButtonDisabled: {
+    backgroundColor: '#cccccc',
   },
 }); 

@@ -5,6 +5,7 @@ import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../types/navigation';
 import { MediaWithUserData, MediaState } from '../types';
 import { getMediaWithUserData, updateUserMedia } from '../services/database';
+import { pushLocalChanges } from '../services/sync';
 
 type MediaDetailScreenNavigationProp = StackNavigationProp<RootStackParamList, 'MediaDetail'>;
 type MediaDetailScreenRouteProp = RouteProp<RootStackParamList, 'MediaDetail'>;
@@ -46,6 +47,7 @@ export const MediaDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         score: media.userScore,
       });
       setMedia({ ...media, userState: newState });
+      await pushLocalChanges();
     } catch (error) {
       console.error('Error updating media state:', error);
     }
@@ -61,6 +63,7 @@ export const MediaDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         score: newScore,
       });
       setMedia({ ...media, userScore: newScore });
+      await pushLocalChanges();
     } catch (error) {
       console.error('Error updating media score:', error);
     }

@@ -7,21 +7,20 @@ import {
   StyleSheet,
   Alert,
 } from 'react-native';
-import { login } from '../services/api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { register } from '../services/api';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 
-type LoginScreenProps = {
-  navigation: NativeStackNavigationProp<RootStackParamList, 'Login'>;
+type RegisterScreenProps = {
+  navigation: NativeStackNavigationProp<RootStackParamList, 'Register'>;
 };
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
+const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async () => {
+  const handleRegister = async () => {
     if (!username || !password) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
@@ -29,11 +28,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
     setLoading(true);
     try {
-      const token = await login(username, password);
-      await AsyncStorage.setItem('userToken', token);
-      navigation.replace('MediaList');
+      await register(username, password);
+      Alert.alert('Success', 'Registration successful! Please login.');
+      navigation.navigate('Login');
     } catch (error) {
-      Alert.alert('Error', 'Invalid credentials');
+      Alert.alert('Error', 'Registration failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -41,7 +40,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>MediaCheck</Text>
+      <Text style={styles.title}>Register</Text>
       <View style={styles.form}>
         <TextInput
           style={styles.input}
@@ -59,18 +58,18 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
         />
         <TouchableOpacity
           style={styles.button}
-          onPress={handleLogin}
+          onPress={handleRegister}
           disabled={loading}
         >
           <Text style={styles.buttonText}>
-            {loading ? 'Logging in...' : 'Login'}
+            {loading ? 'Registering...' : 'Register'}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={styles.registerButton}
-          onPress={() => navigation.navigate('Register')}
+          style={styles.loginButton}
+          onPress={() => navigation.navigate('Login')}
         >
-          <Text style={styles.registerButtonText}>Don't have an account? Register</Text>
+          <Text style={styles.loginButtonText}>Already have an account? Login</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -126,14 +125,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  registerButton: {
+  loginButton: {
     alignItems: 'center',
     padding: 10,
   },
-  registerButtonText: {
+  loginButtonText: {
     color: '#007AFF',
     fontSize: 14,
   },
 });
 
-export default LoginScreen; 
+export default RegisterScreen; 

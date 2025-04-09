@@ -11,6 +11,7 @@ from .serializers import MediaSerializer, UserMediaSerializer
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
+from rest_framework import serializers
 
 def home(request):
     # Get all media items with their average scores
@@ -229,6 +230,20 @@ class MediaViewSet(viewsets.ModelViewSet):
         if user_collection and self.request.user.is_authenticated:
             return Media.objects.filter(user_media__user=self.request.user)
         return Media.objects.all()
+
+    def perform_create(self, serializer):
+        # Get the title and media_type from the request data
+        title = serializer.validated_data.get('title', '').strip()
+        media_type = serializer.validated_data.get('media_type')
+        
+        # Check for existing media with the same title and type
+        if Media.objects.filter(title__iexact=title, media_type=media_type).exists():
+            raise serializers.ValidationError({
+                'title': f'A {media_type} with this exact title already exists. Please check if it\'s the same media.'
+            })
+        
+        # If no duplicate found, save the media
+        serializer.save()
 
 class UserMediaViewSet(viewsets.ModelViewSet):
     serializer_class = UserMediaSerializer

@@ -4,7 +4,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types/navigation';
 import { MediaWithUserData, MediaState } from '../types';
 import { getMediaWithUserData } from '../services/database';
-import { syncData } from '../services/sync';
+import { syncData, pushLocalChanges } from '../services/sync';
 
 type MediaListScreenNavigationProp = StackNavigationProp<RootStackParamList, 'MediaList'>;
 
@@ -25,6 +25,8 @@ export const MediaListScreen: React.FC<Props> = ({ navigation }) => {
       setLoading(true);
       // Try to sync with the backend
       await syncData();
+      // Push any local changes to the backend
+      await pushLocalChanges();
       // Get media from local database
       const media = await getMediaWithUserData();
       setMediaList(media);

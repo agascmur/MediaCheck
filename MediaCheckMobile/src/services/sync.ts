@@ -70,14 +70,31 @@ const syncUserMedia = async (lastSyncTime: Date): Promise<void> => {
 
     // Process each user media item from API
     for (const userMedia of apiUserMedia) {
+      if (!userMedia.media_id) {
+        console.warn('Skipping user media with missing media_id:', userMedia);
+        continue;
+      }
+
       const localUserMedia = localUserMediaMap.get(userMedia.media_id);
       
       if (!localUserMedia) {
         // New user media from API, add to local database
-        await database.addUserMedia(userMedia);
+        await database.addUserMedia({
+          id: userMedia.id,
+          media_id: userMedia.media_id,
+          state: userMedia.state,
+          score: userMedia.score,
+          updated_at: userMedia.updated_at
+        });
       } else if (userMedia.updated_at && new Date(userMedia.updated_at) > lastSyncTime) {
         // User media updated on API, update local database
-        await database.updateUserMedia(userMedia);
+        await database.updateUserMedia({
+          id: userMedia.id,
+          media_id: userMedia.media_id,
+          state: userMedia.state,
+          score: userMedia.score,
+          updated_at: userMedia.updated_at
+        });
       }
     }
   } catch (error) {
@@ -88,33 +105,46 @@ const syncUserMedia = async (lastSyncTime: Date): Promise<void> => {
 
 export const pushLocalChanges = async (): Promise<void> => {
   try {
-    // Get local media
-    const localMedia = await database.getMedia();
+    // Get last sync timestamp
+    const lastSync = await AsyncStorage.getItem(LAST_SYNC_KEY);
+    const lastSyncTime = lastSync ? new Date(lastSync) : new Date(0);
     
     // Get local user media
     const localUserMedia = await database.getUserMedia();
 
-    // Push media to API
-    for (const media of localMedia) {
-      try {
-        await api.addMediaToAPI(media);
-      } catch (error) {
-        console.warn(`Error pushing media ${media.id} to API:`, error);
+    // Only push user media that has been updated since last sync
+    for (const userMedia of localUserMedia) {
+      if (!userMedia.media_id) {
+        console.warn('Skipping user media with missing media_id:', userMedia);
+        continue;
+      }
+
+      if (userMedia.updated_at && new Date(userMedia.updated_at) > lastSyncTime) {
+        try {
+          if (userMedia.id) {
+            await api.updateUserMediaInAPI({
+              id: userMedia.id,
+              media_id: userMedia.media_id,
+              state: userMedia.state,
+              score: userMedia.score,
+              updated_at: userMedia.updated_at
+            });
+          } else {
+            await api.addUserMediaToAPI({
+              media_id: userMedia.media_id,
+              state: userMedia.state,
+              score: userMedia.score,
+              updated_at: userMedia.updated_at
+            });
+          }
+        } catch (error) {
+          console.warn(`Error pushing user media ${userMedia.id} to API:`, error);
+        }
       }
     }
 
-    // Push user media to API
-    for (const userMedia of localUserMedia) {
-      try {
-        if (userMedia.id) {
-          await api.updateUserMediaInAPI(userMedia);
-        } else {
-          await api.addUserMediaToAPI(userMedia);
-        }
-      } catch (error) {
-        console.warn(`Error pushing user media ${userMedia.id} to API:`, error);
-      }
-    }
+    // Update last sync timestamp
+    await AsyncStorage.setItem(LAST_SYNC_KEY, new Date().toISOString());
   } catch (error) {
     console.warn('Error pushing local changes:', error);
     // Don't throw error, just log it
