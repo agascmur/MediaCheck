@@ -1,191 +1,112 @@
-import SQLite from 'react-native-sqlite-storage';
-import { Media, UserMedia, MediaType, MediaState, MediaWithUserData } from '../types';
+import * as SQLite from 'expo-sqlite';
+import { Media, UserMedia, MediaWithUserData, MediaState } from '../types';
 
-// Open the database
-const db = SQLite.openDatabase(
-  {
-    name: 'MediaCheckDB',
-    location: 'default',
-  },
-  () => {
-    console.log('Database opened successfully');
-    initializeDatabase();
-  },
-  (error: any) => {
-    console.error('Error opening database:', error);
-  }
-);
+const db = SQLite.openDatabaseSync('media.db');
 
-// Initialize database tables
-const initializeDatabase = () => {
-  db.transaction((tx: any) => {
-    // Create Media table
-    tx.executeSql(
+// Initialize database
+export const initDatabase = async (): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    db.execAsync(
       `CREATE TABLE IF NOT EXISTS media (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id INTEGER PRIMARY KEY,
         title TEXT NOT NULL,
         media_type TEXT NOT NULL,
-        url TEXT,
         plot TEXT,
         chapters TEXT,
         quotes TEXT,
-        score REAL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`
-    );
-
-    // Create UserMedia table
-    tx.executeSql(
-      `CREATE TABLE IF NOT EXISTS user_media (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        media_id INTEGER,
-        state INTEGER DEFAULT 0,
-        score REAL,
-        added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (media_id) REFERENCES media(id)
-      )`
-    );
+        created_at TEXT
+      );
+      CREATE TABLE IF NOT EXISTS user_media (
+        id INTEGER PRIMARY KEY,
+        media_id INTEGER NOT NULL,
+        state INTEGER,
+        score INTEGER,
+        updated_at TEXT,
+        FOREIGN KEY (media_id) REFERENCES media (id)
+      );`
+    ).then(() => resolve()).catch(reject);
   });
 };
 
 // Media operations
-export const addMedia = (media: Media): Promise<number> => {
+export const getMedia = async (): Promise<Media[]> => {
   return new Promise((resolve, reject) => {
-    db.transaction((tx: any) => {
-      tx.executeSql(
-        `INSERT INTO media (title, media_type, url, plot, chapters, quotes, score)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [
-          media.title,
-          media.media_type,
-          media.url || null,
-          media.plot || null,
-          media.chapters || null,
-          media.quotes ? JSON.stringify(media.quotes) : null,
-          media.score || null,
-        ],
-        (_: any, result: any) => {
-          resolve(result.insertId);
-        },
-        (_: any, error: any) => {
-          reject(error);
-          return false;
-        }
-      );
-    });
+    db.getAllAsync<Media>('SELECT * FROM media;', []).then(resolve).catch(reject);
   });
 };
 
-export const getMedia = (): Promise<Media[]> => {
+export const addMedia = async (media: Media): Promise<void> => {
   return new Promise((resolve, reject) => {
-    db.transaction((tx: any) => {
-      tx.executeSql(
-        'SELECT * FROM media ORDER BY created_at DESC',
-        [],
-        (_: any, result: any) => {
-          const mediaList: Media[] = [];
-          for (let i = 0; i < result.rows.length; i++) {
-            const media = result.rows.item(i);
-            media.quotes = media.quotes ? JSON.parse(media.quotes) : [];
-            mediaList.push(media);
-          }
-          resolve(mediaList);
-        },
-        (_: any, error: any) => {
-          reject(error);
-          return false;
-        }
-      );
-    });
+    db.runAsync(
+      `INSERT INTO media (id, title, media_type, plot, chapters, quotes, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?);`,
+      [
+        media.id ?? null,
+        media.title,
+        media.media_type,
+        media.plot ?? null,
+        media.chapters ?? null,
+        media.quotes ? JSON.stringify(media.quotes) : null,
+        media.created_at ?? null
+      ]
+    ).then(() => resolve()).catch(reject);
   });
 };
 
 // UserMedia operations
-export const addUserMedia = (userMedia: UserMedia): Promise<number> => {
+export const getUserMedia = async (): Promise<UserMedia[]> => {
   return new Promise((resolve, reject) => {
-    db.transaction((tx: any) => {
-      tx.executeSql(
-        `INSERT INTO user_media (media_id, state, score)
-         VALUES (?, ?, ?)`,
-        [userMedia.media_id, userMedia.state, userMedia.score || null],
-        (_: any, result: any) => {
-          resolve(result.insertId);
-        },
-        (_: any, error: any) => {
-          reject(error);
-          return false;
-        }
-      );
-    });
+    db.getAllAsync<UserMedia>('SELECT * FROM user_media;', []).then(resolve).catch(reject);
   });
 };
 
-export const updateUserMedia = (userMedia: UserMedia): Promise<void> => {
+export const addUserMedia = async (userMedia: UserMedia): Promise<void> => {
   return new Promise((resolve, reject) => {
-    db.transaction((tx: any) => {
-      tx.executeSql(
-        `UPDATE user_media 
-         SET state = ?, score = ?, updated_at = CURRENT_TIMESTAMP
-         WHERE media_id = ?`,
-        [userMedia.state, userMedia.score || null, userMedia.media_id],
-        () => {
-          resolve();
-        },
-        (_: any, error: any) => {
-          reject(error);
-          return false;
-        }
-      );
-    });
+    db.runAsync(
+      `INSERT INTO user_media (media_id, state, score, updated_at)
+       VALUES (?, ?, ?, ?);`,
+      [
+        userMedia.media_id,
+        userMedia.state !== undefined ? Number(userMedia.state) : null,
+        userMedia.score !== undefined ? Number(userMedia.score) : null,
+        userMedia.updated_at ?? null
+      ]
+    ).then(() => resolve()).catch(reject);
   });
 };
 
-export const getUserMedia = (): Promise<UserMedia[]> => {
+export const updateUserMedia = async (userMedia: UserMedia): Promise<void> => {
   return new Promise((resolve, reject) => {
-    db.transaction((tx: any) => {
-      tx.executeSql(
-        'SELECT * FROM user_media ORDER BY updated_at DESC',
-        [],
-        (_: any, result: any) => {
-          const userMediaList: UserMedia[] = [];
-          for (let i = 0; i < result.rows.length; i++) {
-            userMediaList.push(result.rows.item(i));
-          }
-          resolve(userMediaList);
-        },
-        (_: any, error: any) => {
-          reject(error);
-          return false;
-        }
-      );
-    });
+    db.runAsync(
+      `UPDATE user_media 
+       SET state = ?, score = ?, updated_at = ?
+       WHERE media_id = ?;`,
+      [
+        userMedia.state !== undefined ? Number(userMedia.state) : null,
+        userMedia.score !== undefined ? Number(userMedia.score) : null,
+        userMedia.updated_at ?? null,
+        userMedia.media_id
+      ]
+    ).then(() => resolve()).catch(reject);
   });
 };
 
-export const getMediaWithUserData = (): Promise<MediaWithUserData[]> => {
+// Combined operations
+export const getMediaWithUserData = async (): Promise<MediaWithUserData[]> => {
   return new Promise((resolve, reject) => {
-    db.transaction((tx: any) => {
-      tx.executeSql(
-        `SELECT m.*, um.state as userState, um.score as userScore
-         FROM media m
-         LEFT JOIN user_media um ON m.id = um.media_id
-         ORDER BY m.created_at DESC`,
-        [],
-        (_: any, result: any) => {
-          const mediaList: MediaWithUserData[] = [];
-          for (let i = 0; i < result.rows.length; i++) {
-            const media = result.rows.item(i);
-            media.quotes = media.quotes ? JSON.parse(media.quotes) : [];
-            mediaList.push(media);
-          }
-          resolve(mediaList);
-        },
-        (_: any, error: any) => {
-          reject(error);
-          return false;
-        }
-      );
-    });
+    db.getAllAsync<any>(
+      `SELECT m.*, um.state as userState, um.score as userScore
+       FROM media m
+       LEFT JOIN user_media um ON m.id = um.media_id;`,
+      []
+    ).then((results) => {
+      const formattedResults = results.map((item) => ({
+        ...item,
+        quotes: item.quotes ? JSON.parse(item.quotes) : null,
+        userState: item.userState !== null ? Number(item.userState) : undefined,
+        userScore: item.userScore !== null ? Number(item.userScore) : undefined
+      }));
+      resolve(formattedResults);
+    }).catch(reject);
   });
 }; 

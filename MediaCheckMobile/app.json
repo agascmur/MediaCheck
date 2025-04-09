@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "sdkVersion": "52.0.0",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -19,10 +19,25 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.agascmur.MediaCheckMobile",
+      "versionCode": 1
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "owner": "agascmur",
+    "extra": {
+      "eas": {
+        "projectId": "d839b5bd-a4e1-4d36-b2ec-11d8947f1e2a"
+      }
+    },
+    "plugins": [
+      "expo-font",
+      "expo-sqlite"
+    ],
+    "runtimeVersion": {
+      "policy": "sdkVersion"
     }
   }
 }

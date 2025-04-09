@@ -27,7 +27,7 @@ export const MediaDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     try {
       setLoading(true);
       const mediaList = await getMediaWithUserData();
-      const foundMedia = mediaList.find(m => m.id === mediaId);
+      const foundMedia = mediaList.find(m => m.id === Number(mediaId));
       setMedia(foundMedia || null);
     } catch (error) {
       console.error('Error loading media details:', error);
