@@ -6,6 +6,8 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.contrib import messages
 from .forms import MediaForm
+from rest_framework import viewsets, permissions
+from .serializers import MediaSerializer, UserMediaSerializer
 
 def home(request):
     # Get all media items with their average scores
@@ -209,3 +211,20 @@ def create_media(request):
         'form': form,
         'is_authenticated': request.user.is_authenticated
     })
+
+class MediaViewSet(viewsets.ModelViewSet):
+    serializer_class = MediaSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        return Media.objects.all()
+
+class UserMediaViewSet(viewsets.ModelViewSet):
+    serializer_class = UserMediaSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        return UserMedia.objects.filter(user=self.request.user)
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)

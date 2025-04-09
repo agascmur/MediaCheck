@@ -1,8 +1,13 @@
-from django.urls import path
+from django.urls import path, include
 from django.contrib.auth import views as auth_views
+from rest_framework.routers import DefaultRouter
 from . import views
 
 app_name = 'media'
+
+router = DefaultRouter()
+router.register(r'media', views.MediaViewSet, basename='media')
+router.register(r'user-media', views.UserMediaViewSet, basename='user-media')
 
 urlpatterns = [
     # Main pages
@@ -23,4 +28,5 @@ urlpatterns = [
     # Media actions
     path('rate/<int:media_id>/', views.rate_media, name='rate_media'),
     path('update-state/<int:media_id>/', views.update_media_state, name='update_media_state'),
+    path('api/', include(router.urls)),
 ] 
