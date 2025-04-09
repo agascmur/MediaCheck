@@ -214,17 +214,22 @@ def create_media(request):
 
 class MediaViewSet(viewsets.ModelViewSet):
     serializer_class = MediaSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
     
     def get_queryset(self):
         return Media.objects.all()
 
 class UserMediaViewSet(viewsets.ModelViewSet):
     serializer_class = UserMediaSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
     
     def get_queryset(self):
-        return UserMedia.objects.filter(user=self.request.user)
+        if self.request.user.is_authenticated:
+            return UserMedia.objects.filter(user=self.request.user)
+        return UserMedia.objects.none()  # Return empty queryset for anonymous users
     
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        if self.request.user.is_authenticated:
+            serializer.save(user=self.request.user)
+        else:
+            raise permissions.exceptions.NotAuthenticated()
