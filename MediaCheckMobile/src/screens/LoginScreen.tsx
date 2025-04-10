@@ -7,7 +7,7 @@ import {
   StyleSheet,
   Alert,
 } from 'react-native';
-import { login } from '../services/api';
+import { login, getMediaFromAPI, getUserMediaFromAPI } from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
@@ -29,11 +29,28 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
     setLoading(true);
     try {
+      // 1. Login to get token
       const token = await login(username, password);
       await AsyncStorage.setItem('userToken', token);
-      navigation.replace('MediaList');
-    } catch (error) {
-      Alert.alert('Error', 'Invalid credentials');
+      
+      // 2. Clear any existing data
+      await AsyncStorage.removeItem('last_sync_timestamp');
+      
+      // 3. Get fresh data from API
+      const [mediaData, userMediaData] = await Promise.all([
+        getMediaFromAPI(),
+        getUserMediaFromAPI()
+      ]);
+      
+      // 4. Store the data
+      await AsyncStorage.setItem('media_data', JSON.stringify(mediaData));
+      await AsyncStorage.setItem('user_media_data', JSON.stringify(userMediaData));
+      
+      // 5. Navigate to MediaList with refresh
+      navigation.replace('MediaList', { refresh: true });
+    } catch (error: any) {
+      console.error('Login error:', error);
+      Alert.alert('Error', error.response?.data?.message || 'Invalid credentials');
     } finally {
       setLoading(false);
     }

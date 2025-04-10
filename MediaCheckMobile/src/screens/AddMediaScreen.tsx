@@ -34,7 +34,16 @@ export const AddMediaScreen: React.FC<Props> = ({ navigation }) => {
     let newMedia;
     try {
       // First post to API
-      newMedia = await addMediaToAPI(media as Media);
+      const mediaData = {
+        title: media.title,
+        media_type: media.media_type,
+        url: media.url || undefined,
+        plot: media.plot || undefined,
+        chapters: media.chapters || undefined,
+        quotes: media.quotes || []
+      };
+      
+      newMedia = await addMediaToAPI(mediaData as Media);
       console.log('Media added to API:', newMedia);
       
       if (!newMedia.id) {

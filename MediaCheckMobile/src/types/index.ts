@@ -12,6 +12,8 @@ export enum MediaState {
   DONE = 3,
 }
 
+export type MediaStateType = MediaState | undefined;
+
 export interface Media {
   id?: number;
   title: string;
@@ -27,7 +29,7 @@ export interface Media {
 export interface UserMedia {
   id?: number;
   media_id: number;
-  state: MediaState;
+  state?: MediaState;
   score?: number;
   added_at?: string;
   updated_at?: string;

@@ -150,7 +150,10 @@ export const getMediaWithUserData = async (): Promise<MediaWithUserData[]> => {
       `SELECT * FROM media;`,
       [] as SQLiteBindParams
     ).then((mediaResults) => {
+      console.log('Media results from database:', mediaResults);
+      
       if (!mediaResults || mediaResults.length === 0) {
+        console.log('No media results found');
         resolve([]);
         return;
       }
@@ -160,9 +163,17 @@ export const getMediaWithUserData = async (): Promise<MediaWithUserData[]> => {
         `SELECT * FROM user_media;`,
         [] as SQLiteBindParams
       ).then((userMediaResults) => {
+        console.log('User media results from database:', userMediaResults);
+        
         // Combine the results
         const combinedResults = mediaResults.map(media => {
           const userMedia = userMediaResults.find(um => um.media_id === media.id);
+          console.log(`Processing media ${media.id}:`, {
+            media,
+            userMedia,
+            match: userMediaResults.find(um => um.media_id === media.id)
+          });
+          
           return {
             ...media,
             quotes: typeof media.quotes === 'string' ? JSON.parse(media.quotes) : media.quotes,
@@ -171,10 +182,16 @@ export const getMediaWithUserData = async (): Promise<MediaWithUserData[]> => {
           };
         });
         
-        console.log('Media with user data:', combinedResults);
+        console.log('Final combined results:', combinedResults);
         resolve(combinedResults);
-      }).catch(reject);
-    }).catch(reject);
+      }).catch(error => {
+        console.error('Error fetching user media:', error);
+        reject(error);
+      });
+    }).catch(error => {
+      console.error('Error fetching media:', error);
+      reject(error);
+    });
   });
 };
 

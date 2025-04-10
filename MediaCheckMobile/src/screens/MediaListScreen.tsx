@@ -1,17 +1,19 @@
-import React, { useEffect, useState } from 'react';
-import { View, FlatList, StyleSheet, TouchableOpacity, Text } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, FlatList, StyleSheet, TouchableOpacity, Text, ActivityIndicator } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { RouteProp, useFocusEffect } from '@react-navigation/native';
 import { RootStackParamList } from '../types/navigation';
-import { MediaWithUserData, MediaState } from '../types';
-import { getMediaWithUserData } from '../services/database';
-import { syncData, pushLocalChanges } from '../services/sync';
+import { MediaWithUserData, MediaState, UserMedia } from '../types';
+import { getUserMediaFromAPI } from '../services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type MediaListScreenNavigationProp = StackNavigationProp<RootStackParamList, 'MediaList'>;
+type MediaListScreenRouteProp = RouteProp<RootStackParamList, 'MediaList'>;
 
-interface Props {
+type Props = {
   navigation: MediaListScreenNavigationProp;
-  route: any;
-}
+  route: MediaListScreenRouteProp;
+};
 
 export const MediaListScreen: React.FC<Props> = ({ navigation, route }) => {
   const [media, setMedia] = useState<MediaWithUserData[]>([]);
@@ -20,18 +22,34 @@ export const MediaListScreen: React.FC<Props> = ({ navigation, route }) => {
   const loadMedia = async () => {
     try {
       setLoading(true);
-      const mediaData = await getMediaWithUserData();
-      setMedia(mediaData);
-    } catch (error) {
+      
+      // Fetch data from API
+      const userMediaData = await getUserMediaFromAPI();
+      const transformedData = userMediaData.map((userMedia: UserMedia) => ({
+        ...userMedia.media!,
+        userState: userMedia.state,
+        userScore: userMedia.score
+      }));
+      
+      setMedia(transformedData);
+    } catch (error: any) {
       console.error('Error loading media:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadMedia();
-  }, []);
+  // Refresh when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      loadMedia();
+    }, [])
+  );
 
   // Refresh when route params change
   useEffect(() => {

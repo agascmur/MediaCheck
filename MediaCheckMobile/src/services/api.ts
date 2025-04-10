@@ -60,9 +60,15 @@ export const login = async (username: string, password: string): Promise<string>
 export const getMediaFromAPI = async (): Promise<Media[]> => {
   try {
     const response = await api.get('api/media/');
+    console.log('API Response - Media:', response.data);
     return response.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching media from API:', error);
+    console.error('Error details:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status
+    });
     throw error;
   }
 };
@@ -90,9 +96,15 @@ export const deleteMediaFromAPI = async (mediaId: number): Promise<void> => {
 export const getUserMediaFromAPI = async (): Promise<UserMedia[]> => {
   try {
     const response = await api.get('api/user-media/');
+    console.log('API Response - User Media:', response.data);
     return response.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching user media from API:', error);
+    console.error('Error details:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status
+    });
     throw error;
   }
 };
