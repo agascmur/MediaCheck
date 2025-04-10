@@ -3,12 +3,9 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert 
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types/navigation';
 import { Media, MediaType } from '../types';
-import { addMedia } from '../services/database';
-import { addMediaToAPI } from '../services/api';
-import { addUserMedia } from '../services/database';
+import { addMedia, addUserMedia, deleteMedia } from '../services/database';
+import { addMediaToAPI, addUserMediaToAPI, deleteMediaFromAPI } from '../services/api';
 import { MediaState } from '../types';
-import { addUserMediaToAPI } from '../services/api';
-import { deleteMediaFromAPI } from '../services/api';
 
 type AddMediaScreenNavigationProp = StackNavigationProp<RootStackParamList, 'AddMedia'>;
 
@@ -44,16 +41,16 @@ export const AddMediaScreen: React.FC<Props> = ({ navigation }) => {
         throw new Error('Media ID not returned from API');
       }
       
-      // Then add to local database with the ID from the API response
+      // Then add to local database using the server's ID
       await addMedia({
         ...newMedia,
-        id: newMedia.id,
+        id: newMedia.id  // Ensure we're using the server's ID
       });
       console.log('Media added to local database');
       
       // Create initial user media entry
       const userMedia = {
-        media_id: newMedia.id,
+        media_id: newMedia.id,  // Use the server's media ID
         state: MediaState.CHECK,
         score: undefined,
         updated_at: new Date().toISOString()
@@ -63,22 +60,35 @@ export const AddMediaScreen: React.FC<Props> = ({ navigation }) => {
       const apiUserMedia = await addUserMediaToAPI(userMedia);
       console.log('User media added to API:', apiUserMedia);
       
-      // Then add to local database with the correct structure
+      // Then add to local database using the server's IDs
+      if (!apiUserMedia.media?.id) {
+        throw new Error('Media ID not found in API response');
+      }
       await addUserMedia({
+        ...apiUserMedia,
         id: apiUserMedia.id,
-        media_id: apiUserMedia.media_id,
-        state: apiUserMedia.state,
-        score: apiUserMedia.score,
-        updated_at: apiUserMedia.updated_at
+        media_id: apiUserMedia.media.id
       });
       console.log('User media added to local database');
       
-      navigation.goBack();
+      // If we get here, everything succeeded
+      Alert.alert(
+        'Success',
+        'Media added successfully!',
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
     } catch (error: any) {
       console.error('Error adding media:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        stack: error.stack
+      });
       
-      // If we have a media ID but user media creation failed, we need to clean up
-      if (newMedia?.id) {
+      // Only attempt cleanup if we have a valid media ID and the error is from user media creation
+      if (newMedia?.id && error.response?.status === 500) {
+        console.log('Attempting cleanup due to API error');
         try {
           await deleteMediaFromAPI(newMedia.id);
           console.log('Cleanup successful: Media deleted from API');
@@ -106,6 +116,13 @@ export const AddMediaScreen: React.FC<Props> = ({ navigation }) => {
         Alert.alert(
           'Error',
           error.response.data.non_field_errors[0],
+          [{ text: 'OK' }]
+        );
+      } else if (error.message === 'Media not found in local database') {
+        // Handle local database error
+        Alert.alert(
+          'Error',
+          'There was a problem saving to your local database. Please try again.',
           [{ text: 'OK' }]
         );
       } else {

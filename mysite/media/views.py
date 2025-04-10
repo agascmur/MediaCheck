@@ -1,17 +1,37 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.db.models import Avg
-from django.contrib.auth import login
+from django.contrib.auth import login, authenticate
 from .models import Media, UserMedia, User
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.contrib import messages
 from .forms import MediaForm
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, status
 from .serializers import MediaSerializer, UserMediaSerializer
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 from rest_framework import serializers
+from rest_framework.permissions import AllowAny
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def obtain_auth_token(request):
+    username = request.data.get('username')
+    password = request.data.get('password')
+    
+    if username is None or password is None:
+        return Response({'error': 'Please provide both username and password'},
+                        status=status.HTTP_400_BAD_REQUEST)
+    
+    user = authenticate(username=username, password=password)
+    
+    if not user:
+        return Response({'error': 'Invalid credentials'},
+                        status=status.HTTP_401_UNAUTHORIZED)
+    
+    token, created = Token.objects.get_or_create(user=user)
+    return Response({'token': token.key})
 
 def home(request):
     # Get all media items with their average scores
@@ -253,7 +273,7 @@ class UserMediaViewSet(viewsets.ModelViewSet):
         return UserMedia.objects.filter(user=self.request.user)
     
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        serializer.save()
 
     @action(detail=False, methods=['get'])
     def get_token(self, request):

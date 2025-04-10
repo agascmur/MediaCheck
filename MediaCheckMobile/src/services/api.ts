@@ -3,11 +3,15 @@ import { Media, UserMedia } from '../types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Using the computer's IP address instead of localhost
-const API_URL = 'http://192.168.1.39:8000/';
+const API_URL = 'http://192.168.1.155:8000';
 
-// Create axios instance with default config
+// Create axios instance with default config for authenticated requests
 const api = axios.create({
   baseURL: API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  }
 });
 
 // Add token to requests
@@ -19,10 +23,23 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
+// Helper function for unauthenticated requests
+const makeUnauthenticatedRequest = async (method: 'post' | 'get', endpoint: string, data?: any) => {
+  return axios({
+    method,
+    url: `${API_URL}/${endpoint}`,
+    data,
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    }
+  });
+};
+
 // Auth operations
 export const register = async (username: string, password: string): Promise<void> => {
   try {
-    await api.post('register/', { username, password });
+    await makeUnauthenticatedRequest('post', 'register/', { username, password });
   } catch (error) {
     console.error('Error registering user:', error);
     throw error;
@@ -31,7 +48,7 @@ export const register = async (username: string, password: string): Promise<void
 
 export const login = async (username: string, password: string): Promise<string> => {
   try {
-    const response = await api.post('api-token-auth/', { username, password });
+    const response = await makeUnauthenticatedRequest('post', 'api-token-auth/', { username, password });
     return response.data.token;
   } catch (error) {
     console.error('Error logging in:', error);

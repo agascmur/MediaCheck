@@ -31,6 +31,7 @@ export interface UserMedia {
   score?: number;
   added_at?: string;
   updated_at?: string;
+  media?: Media;
 }
 
 export interface MediaWithUserData extends Media {
