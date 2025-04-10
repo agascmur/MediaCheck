@@ -71,12 +71,8 @@ export const AddMediaScreen: React.FC<Props> = ({ navigation }) => {
       });
       console.log('User media added to local database');
       
-      // If we get here, everything succeeded
-      Alert.alert(
-        'Success',
-        'Media added successfully!',
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
+      // Navigate back to main menu with refresh
+      navigation.navigate('MediaList', { refresh: true });
     } catch (error: any) {
       console.error('Error adding media:', error);
       console.error('Error details:', {

@@ -10,32 +10,35 @@ type MediaListScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Me
 
 interface Props {
   navigation: MediaListScreenNavigationProp;
+  route: any;
 }
 
-export const MediaListScreen: React.FC<Props> = ({ navigation }) => {
-  const [mediaList, setMediaList] = useState<MediaWithUserData[]>([]);
+export const MediaListScreen: React.FC<Props> = ({ navigation, route }) => {
+  const [media, setMedia] = useState<MediaWithUserData[]>([]);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadMedia();
-  }, []);
 
   const loadMedia = async () => {
     try {
       setLoading(true);
-      // Try to sync with the backend
-      await syncData();
-      // Push any local changes to the backend
-      await pushLocalChanges();
-      // Get media from local database
-      const media = await getMediaWithUserData();
-      setMediaList(media);
+      const mediaData = await getMediaWithUserData();
+      setMedia(mediaData);
     } catch (error) {
       console.error('Error loading media:', error);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadMedia();
+  }, []);
+
+  // Refresh when route params change
+  useEffect(() => {
+    if (route.params?.refresh) {
+      loadMedia();
+    }
+  }, [route.params?.refresh]);
 
   const renderMediaItem = ({ item }: { item: MediaWithUserData }) => (
     <TouchableOpacity
@@ -58,7 +61,7 @@ export const MediaListScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <FlatList
-        data={mediaList}
+        data={media}
         renderItem={renderMediaItem}
         keyExtractor={(item) => item.id?.toString() || ''}
         refreshing={loading}
