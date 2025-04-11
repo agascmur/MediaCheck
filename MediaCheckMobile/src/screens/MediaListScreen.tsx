@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, FlatList, StyleSheet, TouchableOpacity, Text, ActivityIndicator } from 'react-native';
+import { View, FlatList, StyleSheet, TouchableOpacity, Text, ActivityIndicator, ScrollView } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp, useFocusEffect } from '@react-navigation/native';
 import { RootStackParamList } from '../types/navigation';
@@ -17,7 +17,9 @@ type Props = {
 
 export const MediaListScreen: React.FC<Props> = ({ navigation, route }) => {
   const [media, setMedia] = useState<MediaWithUserData[]>([]);
+  const [filteredMedia, setFilteredMedia] = useState<MediaWithUserData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedState, setSelectedState] = useState<MediaState | undefined>(undefined);
 
   const loadMedia = async () => {
     try {
@@ -27,11 +29,12 @@ export const MediaListScreen: React.FC<Props> = ({ navigation, route }) => {
       const userMediaData = await getUserMediaFromAPI();
       const transformedData = userMediaData.map((userMedia: UserMedia) => ({
         ...userMedia.media!,
-        userState: userMedia.state,
-        userScore: userMedia.score
+        userState: userMedia.state !== undefined ? Number(userMedia.state) : undefined,
+        userScore: userMedia.score !== undefined ? Number(userMedia.score) : undefined
       }));
       
       setMedia(transformedData);
+      applyFilter(transformedData, selectedState);
     } catch (error: any) {
       console.error('Error loading media:', error);
       console.error('Error details:', {
@@ -42,6 +45,22 @@ export const MediaListScreen: React.FC<Props> = ({ navigation, route }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const applyFilter = (data: MediaWithUserData[], state?: MediaState) => {
+    if (state === undefined) {
+      // Show all items regardless of their state
+      setFilteredMedia(data);
+      return;
+    }
+    
+    const stateNum = Number(state);
+    const filtered = data.filter(item => {
+      // For other states, show items that match the state
+      return item.userState === stateNum;
+    });
+    
+    setFilteredMedia(filtered);
   };
 
   // Refresh when screen comes into focus
@@ -57,6 +76,11 @@ export const MediaListScreen: React.FC<Props> = ({ navigation, route }) => {
       loadMedia();
     }
   }, [route.params?.refresh]);
+
+  // Apply filter when selectedState changes
+  useEffect(() => {
+    applyFilter(media, selectedState);
+  }, [selectedState, media]);
 
   const renderMediaItem = ({ item }: { item: MediaWithUserData }) => (
     <TouchableOpacity
@@ -76,10 +100,56 @@ export const MediaListScreen: React.FC<Props> = ({ navigation, route }) => {
     </TouchableOpacity>
   );
 
+  const renderFilterBar = () => (
+    <View style={styles.filterBarContainer}>
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        style={styles.filterBar}
+        contentContainerStyle={styles.filterBarContent}
+      >
+        {Object.values(MediaState)
+          .filter(v => !isNaN(Number(v)))
+          .map(state => {
+            const stateValue = Number(state);
+            const stateColor = {
+              [MediaState.CHECK]: '#2196F3',    // Blue
+              [MediaState.CHECKED]: '#4CAF50',  // Green
+              [MediaState.VIEWING]: '#FFC107',  // Amber
+              [MediaState.DONE]: '#9C27B0',     // Purple
+            }[stateValue] || '#e0e0e0';         // Default gray
+
+            return (
+              <TouchableOpacity
+                key={state}
+                style={[
+                  styles.filterButton,
+                  selectedState === stateValue && styles.selectedFilterButton,
+                  { borderColor: stateColor }
+                ]}
+                onPress={() => {
+                  // Toggle the filter - if already selected, clear it
+                  setSelectedState(selectedState === stateValue ? undefined : stateValue);
+                }}
+              >
+                <Text style={[
+                  styles.filterButtonText,
+                  selectedState === stateValue && styles.selectedFilterButtonText
+                ]}>
+                  {MediaState[stateValue]}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+      </ScrollView>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
+      {renderFilterBar()}
       <FlatList
-        data={media}
+        data={filteredMedia}
         renderItem={renderMediaItem}
         keyExtractor={(item) => item.id?.toString() || ''}
         refreshing={loading}
@@ -99,6 +169,45 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  filterBarContainer: {
+    height: 52,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  filterBar: {
+    flex: 1,
+  },
+  filterBarContent: {
+    paddingHorizontal: 8,
+    gap: 8,
+    alignItems: 'center',
+    height: 52,
+    paddingVertical: 8,
+  },
+  filterButton: {
+    minWidth: 80,
+    height: 36,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    backgroundColor: 'white',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  selectedFilterButton: {
+    backgroundColor: '#2196F3',
+    borderColor: '#2196F3',
+  },
+  filterButtonText: {
+    color: '#333',
+    fontWeight: '500',
+  },
+  selectedFilterButtonText: {
+    color: 'white',
   },
   mediaItem: {
     backgroundColor: 'white',
