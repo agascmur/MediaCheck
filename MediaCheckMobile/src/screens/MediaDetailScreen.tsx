@@ -1,13 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { RouteProp } from '@react-navigation/native';
+import { RouteProp, useFocusEffect } from '@react-navigation/native';
 import { RootStackParamList } from '../types/navigation';
 import { Media, MediaState, UserMedia, MediaWithUserData, MediaStateType } from '../types';
 import { getUserMediaFromAPI, updateUserMediaInAPI, addUserMediaToAPI } from '../services/api';
 import { getMediaWithUserData } from '../services/database';
-import { pushLocalChanges } from '../services/sync';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type MediaDetailScreenNavigationProp = StackNavigationProp<RootStackParamList, 'MediaDetail'>;
 type MediaDetailScreenRouteProp = RouteProp<RootStackParamList, 'MediaDetail'>;
@@ -22,53 +20,46 @@ export const MediaDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const [media, setMedia] = useState<MediaWithUserData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadMedia();
-  }, [mediaId]);
+  useFocusEffect(
+    React.useCallback(() => {
+      loadMedia();
+    }, [mediaId])
+  );
 
   const loadMedia = async () => {
     try {
       setLoading(true);
       console.log('Loading media for ID:', mediaId);
       
-      // First sync any local changes to the API
-      console.log('Syncing local changes to API...');
-      await pushLocalChanges();
+      // First try to get fresh data from API
+      console.log('Fetching fresh data from API...');
+      const apiUserMediaData = await getUserMediaFromAPI();
+      const apiUserMedia = apiUserMediaData.find(um => um.media?.id === Number(mediaId));
       
-      // Get all media with user data from local database
-      const allMedia = await getMediaWithUserData();
-      console.log('All media from database:', allMedia);
-      
-      const foundMedia = allMedia.find(m => m.id === Number(mediaId));
-      console.log('Found media:', foundMedia);
-      
-      if (foundMedia) {
-        console.log('Setting media state:', {
-          id: foundMedia.id,
-          userState: foundMedia.userState,
-          userScore: foundMedia.userScore
-        });
-        setMedia(foundMedia);
+      if (apiUserMedia && apiUserMedia.media) {
+        console.log('Found media in API:', apiUserMedia);
+        const transformedMedia = {
+          ...apiUserMedia.media,
+          userState: apiUserMedia.state !== undefined ? Number(apiUserMedia.state) : undefined,
+          userScore: apiUserMedia.score !== undefined ? Number(apiUserMedia.score) : undefined
+        };
+        console.log('Setting transformed media from API:', transformedMedia);
+        setMedia(transformedMedia);
       } else {
-        console.log('Media not found in local database, trying API...');
-        // If not found in local database, try API
-        const apiUserMediaData = await getUserMediaFromAPI();
-        console.log('API user media data:', apiUserMediaData);
+        // If not found in API, try local database
+        console.log('Media not found in API, trying local database...');
+        const allMedia = await getMediaWithUserData();
+        const foundMedia = allMedia.find(m => m.id === Number(mediaId));
         
-        // Look for the media in the nested media object and transform it
-        const apiUserMedia = apiUserMediaData.find(um => um.media?.id === Number(mediaId));
-        console.log('Found API user media:', apiUserMedia);
-        
-        if (apiUserMedia && apiUserMedia.media) {
-          const transformedMedia = {
-            ...apiUserMedia.media,
-            userState: apiUserMedia.state,
-            userScore: apiUserMedia.score
-          };
-          console.log('Setting transformed media from API:', transformedMedia);
-          setMedia(transformedMedia);
+        if (foundMedia) {
+          console.log('Found media in local database:', foundMedia);
+          setMedia({
+            ...foundMedia,
+            userState: foundMedia.userState !== undefined ? Number(foundMedia.userState) : undefined,
+            userScore: foundMedia.userScore !== undefined ? Number(foundMedia.userScore) : undefined
+          });
         } else {
-          console.log('Media not found in API either');
+          console.log('Media not found in either API or local database');
           setMedia(null);
         }
       }
@@ -101,59 +92,37 @@ export const MediaDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       const userMediaList = await getUserMediaFromAPI();
       const userMedia = userMediaList.find(um => um.media?.id === media.id);
       
-      console.log('Found user media:', userMedia);
+      let updatedUserMedia;
       
       if (userMedia) {
         // Update existing entry
-        console.log('Updating existing user media:', {
-          id: userMedia.id,
-          media_id: media.id,
-          state: targetState || MediaState.CHECK,
-          score: userMedia.score
-        });
-        
-        await updateUserMediaInAPI({
+        updatedUserMedia = await updateUserMediaInAPI({
           id: userMedia.id,
           media_id: media.id!,
-          state: targetState || MediaState.CHECK,
-          score: userMedia.score,
+          state: targetState ?? MediaState.CHECK, // Use null coalescing to ensure a valid state
+          score: userMedia.score ?? 0,
           updated_at: new Date().toISOString()
         });
-      } else if (targetState !== undefined) {
-        // Create new user media entry only if we're not deselecting
-        console.log('Creating new user media:', {
-          media_id: media.id,
-          state: targetState
-        });
-        
-        await addUserMediaToAPI({
+      } else {
+        // Create new user media entry
+        updatedUserMedia = await addUserMediaToAPI({
           media_id: media.id!,
-          state: targetState,
+          state: targetState ?? MediaState.CHECK,
           score: 0,
           updated_at: new Date().toISOString()
         });
       }
       
-      // Update local state
-      console.log('Updating local state:', {
-        id: media.id,
-        newState: targetState
-      });
-      
-      setMedia({
-        ...media,
-        userState: targetState
-      });
-      
-      // Reload media to ensure sync
-      await loadMedia();
+      // Update local state immediately with the API response
+      if (updatedUserMedia) {
+        setMedia({
+          ...media,
+          userState: targetState ?? MediaState.CHECK,
+          userScore: updatedUserMedia.score ?? 0
+        });
+      }
     } catch (error: any) {
       console.error('Error updating media state:', error);
-      console.error('Error details:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status
-      });
     }
   };
 
@@ -174,59 +143,37 @@ export const MediaDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       const userMediaList = await getUserMediaFromAPI();
       const userMedia = userMediaList.find(um => um.media?.id === media.id);
       
-      console.log('Found user media:', userMedia);
+      let updatedUserMedia;
       
       if (userMedia) {
         // Update existing entry
-        console.log('Updating existing user media:', {
-          id: userMedia.id,
-          media_id: media.id,
-          state: userMedia.state,
-          score: targetScore
-        });
-        
-        await updateUserMediaInAPI({
+        updatedUserMedia = await updateUserMediaInAPI({
           id: userMedia.id,
           media_id: media.id!,
-          state: userMedia.state,
-          score: targetScore,
+          state: userMedia.state ?? MediaState.CHECK,
+          score: targetScore ?? 0,
           updated_at: new Date().toISOString()
         });
-      } else if (targetScore !== undefined) {
-        // Create new user media entry only if we're not deselecting
-        console.log('Creating new user media:', {
-          media_id: media.id,
-          score: targetScore
-        });
-        
-        await addUserMediaToAPI({
+      } else {
+        // Create new user media entry
+        updatedUserMedia = await addUserMediaToAPI({
           media_id: media.id!,
           state: MediaState.CHECK,
-          score: targetScore,
+          score: targetScore ?? 0,
           updated_at: new Date().toISOString()
         });
       }
       
-      // Update local state
-      console.log('Updating local state:', {
-        id: media.id,
-        newScore: targetScore
-      });
-      
-      setMedia({
-        ...media,
-        userScore: targetScore
-      });
-      
-      // Reload media to ensure sync
-      await loadMedia();
+      // Update local state immediately with the API response
+      if (updatedUserMedia) {
+        setMedia({
+          ...media,
+          userState: updatedUserMedia.state ?? MediaState.CHECK,
+          userScore: targetScore ?? 0
+        });
+      }
     } catch (error: any) {
       console.error('Error updating media score:', error);
-      console.error('Error details:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status
-      });
     }
   };
 
