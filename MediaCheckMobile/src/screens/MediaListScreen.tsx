@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, FlatList, StyleSheet, TouchableOpacity, Text, ActivityIndicator, ScrollView } from 'react-native';
+import { View, FlatList, StyleSheet, TouchableOpacity, Text, ActivityIndicator, ScrollView, Alert } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp, useFocusEffect } from '@react-navigation/native';
 import { RootStackParamList } from '../types/navigation';
 import { MediaWithUserData, MediaState, UserMedia } from '../types';
-import { getUserMediaFromAPI } from '../services/api';
+import { getUserMediaFromAPI, deleteUserMediaFromAPI, deleteMediaFromAPI } from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type MediaListScreenNavigationProp = StackNavigationProp<RootStackParamList, 'MediaList'>;
@@ -63,6 +63,45 @@ export const MediaListScreen: React.FC<Props> = ({ navigation, route }) => {
     setFilteredMedia(filtered);
   };
 
+  const handleDeleteMedia = async (mediaId: number) => {
+    try {
+      // Get user media from API
+      const userMediaList = await getUserMediaFromAPI();
+      const userMedia = userMediaList.find(um => um.media?.id === mediaId);
+      
+      if (userMedia && userMedia.id !== undefined) {
+        // Delete from API using the userMedia.id (not media.id)
+        await deleteMediaFromAPI(userMedia.media?.id ?? 0);
+        
+        // Update local state
+        const updatedMedia = media.filter(m => m.id !== mediaId);
+        setMedia(updatedMedia);
+        applyFilter(updatedMedia, selectedState);
+      }
+    } catch (error: any) {
+      console.error('Error deleting media:', error);
+      Alert.alert('Error', 'Failed to delete media. Please try again.');
+    }
+  };
+
+  const showDeleteConfirmation = (mediaId: number, title: string) => {
+    Alert.alert(
+      'Delete Media',
+      `Are you sure you want to delete "${title}"?`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => handleDeleteMedia(mediaId)
+        }
+      ]
+    );
+  };
+
   // Refresh when screen comes into focus
   useFocusEffect(
     useCallback(() => {
@@ -86,6 +125,8 @@ export const MediaListScreen: React.FC<Props> = ({ navigation, route }) => {
     <TouchableOpacity
       style={styles.mediaItem}
       onPress={() => navigation.navigate('MediaDetail', { mediaId: item.id!.toString() })}
+      onLongPress={() => showDeleteConfirmation(item.id!, item.title)}
+      delayLongPress={500}
     >
       <Text style={styles.title}>{item.title}</Text>
       <Text style={styles.type}>{item.media_type}</Text>

@@ -127,4 +127,13 @@ export const updateUserMediaInAPI = async (userMedia: UserMedia): Promise<UserMe
     console.error('Error updating user media in API:', error);
     throw error;
   }
+};
+
+export const deleteUserMediaFromAPI = async (userMediaId: number): Promise<void> => {
+  try {
+    await api.delete(`api/user-media/${userMediaId}/`);
+  } catch (error: any) {
+    console.error('Error deleting user media:', error);
+    throw error;
+  }
 }; 
