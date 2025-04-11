@@ -41,7 +41,9 @@ export const MediaDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         const transformedMedia = {
           ...apiUserMedia.media,
           userState: apiUserMedia.state !== undefined ? Number(apiUserMedia.state) : undefined,
-          userScore: apiUserMedia.score !== undefined ? Number(apiUserMedia.score) : undefined
+          // Only set score if state is not CHECK
+          userScore: apiUserMedia.state === MediaState.CHECK ? undefined : 
+                    (apiUserMedia.score !== undefined ? Number(apiUserMedia.score) : undefined)
         };
         console.log('Setting transformed media from API:', transformedMedia);
         setMedia(transformedMedia);
@@ -56,7 +58,9 @@ export const MediaDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           setMedia({
             ...foundMedia,
             userState: foundMedia.userState !== undefined ? Number(foundMedia.userState) : undefined,
-            userScore: foundMedia.userScore !== undefined ? Number(foundMedia.userScore) : undefined
+            // Only set score if state is not CHECK
+            userScore: foundMedia.userState === MediaState.CHECK ? undefined :
+                      (foundMedia.userScore !== undefined ? Number(foundMedia.userScore) : undefined)
           });
         } else {
           console.log('Media not found in either API or local database');
@@ -84,8 +88,8 @@ export const MediaDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       newState
     });
     
-    // If clicking the current state, set to undefined to deselect
-    const targetState = media.userState === newState ? undefined : newState;
+    // Keep the same state if clicking it again
+    const targetState = newState;
     
     try {
       // Get user media from API
@@ -99,15 +103,16 @@ export const MediaDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         updatedUserMedia = await updateUserMediaInAPI({
           id: userMedia.id,
           media_id: media.id!,
-          state: targetState ?? MediaState.CHECK, // Use null coalescing to ensure a valid state
-          score: userMedia.score ?? 0,
+          state: targetState,
+          // Clear score if state is CHECK
+          score: targetState === MediaState.CHECK ? 0 : (userMedia.score ?? 0),
           updated_at: new Date().toISOString()
         });
       } else {
         // Create new user media entry
         updatedUserMedia = await addUserMediaToAPI({
           media_id: media.id!,
-          state: targetState ?? MediaState.CHECK,
+          state: targetState,
           score: 0,
           updated_at: new Date().toISOString()
         });
@@ -117,8 +122,9 @@ export const MediaDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       if (updatedUserMedia) {
         setMedia({
           ...media,
-          userState: targetState ?? MediaState.CHECK,
-          userScore: updatedUserMedia.score ?? 0
+          userState: targetState,
+          // Clear score if state is CHECK
+          userScore: targetState === MediaState.CHECK ? undefined : (updatedUserMedia.score ?? 0)
         });
       }
     } catch (error: any) {
@@ -249,28 +255,31 @@ export const MediaDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         </View>
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Score</Text>
-        <View style={styles.scoreButtons}>
-          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(score => (
-            <TouchableOpacity
-              key={score}
-              style={[
-                styles.scoreButton,
-                media.userScore === score && styles.selectedScoreButton,
-              ]}
-              onPress={() => handleScoreChange(score)}
-            >
-              <Text style={[
-                styles.scoreButtonText,
-                media.userScore === score && styles.selectedScoreButtonText,
-              ]}>
-                {score}
-              </Text>
-            </TouchableOpacity>
-          ))}
+      {/* Only show score section if state is not CHECK */}
+      {Number(media.userState) !== Number(MediaState.CHECK) && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Score</Text>
+          <View style={styles.scoreButtons}>
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(score => (
+              <TouchableOpacity
+                key={score}
+                style={[
+                  styles.scoreButton,
+                  media.userScore === score && styles.selectedScoreButton,
+                ]}
+                onPress={() => handleScoreChange(score)}
+              >
+                <Text style={[
+                  styles.scoreButtonText,
+                  media.userScore === score && styles.selectedScoreButtonText,
+                ]}>
+                  {score}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
-      </View>
+      )}
 
       {media.quotes && media.quotes.length > 0 && (
         <View style={styles.section}>
@@ -369,4 +378,10 @@ const styles = StyleSheet.create({
     borderLeftWidth: 2,
     borderLeftColor: '#2196F3',
   },
-}); 
+  debugText: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#666',
+    fontStyle: 'italic',
+  },
+});
