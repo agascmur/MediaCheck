@@ -7,7 +7,6 @@ import { MediaWithUserData, MediaState, UserMedia } from '../types';
 import { getUserMediaFromAPI, deleteUserMediaFromAPI } from '../services/api';
 import { getMediaWithUserData } from '../services/database';
 import { syncData, pushLocalChanges } from '../services/sync';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type MediaListScreenNavigationProp = StackNavigationProp<RootStackParamList, 'MediaList'>;
 type MediaListScreenRouteProp = RouteProp<RootStackParamList, 'MediaList'>;
