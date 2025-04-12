@@ -1,12 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, FlatList, StyleSheet, TouchableOpacity, Text, ActivityIndicator, ScrollView, Alert } from 'react-native';
+import { View, FlatList, StyleSheet, TouchableOpacity, Text, ActivityIndicator, ScrollView, Alert, TextInput } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp, useFocusEffect } from '@react-navigation/native';
 import { RootStackParamList } from '../types/navigation';
 import { MediaWithUserData, MediaState, UserMedia } from '../types';
-import { getUserMediaFromAPI, deleteUserMediaFromAPI } from '../services/api';
-import { getMediaWithUserData } from '../services/database';
-import { syncData, pushLocalChanges } from '../services/sync';
+import { getUserMediaFromAPI, deleteUserMediaFromAPI, deleteMediaFromAPI } from '../services/api';
 
 type MediaListScreenNavigationProp = StackNavigationProp<RootStackParamList, 'MediaList'>;
 type MediaListScreenRouteProp = RouteProp<RootStackParamList, 'MediaList'>;
@@ -21,32 +19,22 @@ export const MediaListScreen: React.FC<Props> = ({ navigation, route }) => {
   const [filteredMedia, setFilteredMedia] = useState<MediaWithUserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedState, setSelectedState] = useState<MediaState | undefined>(undefined);
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const loadMedia = async () => {
     try {
       setLoading(true);
       
-      // First try to sync with API
-      await syncData();
+      // Fetch data from API
+      const userMediaData = await getUserMediaFromAPI();
+      const transformedData = userMediaData.map((userMedia: UserMedia) => ({
+        ...userMedia.media!,
+        userState: userMedia.state !== undefined ? Number(userMedia.state) : undefined,
+        userScore: userMedia.score !== undefined ? Number(userMedia.score) : undefined
+      }));
       
-      // Then get data from local database
-      const localData = await getMediaWithUserData();
-      
-      if (localData.length > 0) {
-        setMedia(localData);
-        applyFilter(localData, selectedState);
-      } else {
-        // Fallback to API if no local data
-        const userMediaData = await getUserMediaFromAPI();
-        const transformedData = userMediaData.map((userMedia: UserMedia) => ({
-          ...userMedia.media!,
-          userState: userMedia.state !== undefined ? Number(userMedia.state) : undefined,
-          userScore: userMedia.score !== undefined ? Number(userMedia.score) : undefined
-        }));
-        
-        setMedia(transformedData);
-        applyFilter(transformedData, selectedState);
-      }
+      setMedia(transformedData);
+      applyFilter(transformedData, selectedState, searchQuery); // Apply the filter with search query
     } catch (error: any) {
       console.error('Error loading media:', error);
       console.error('Error details:', {
@@ -59,39 +47,34 @@ export const MediaListScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
-  const applyFilter = (data: MediaWithUserData[], state?: MediaState) => {
-    if (state === undefined) {
-      // Show all items regardless of their state
-      setFilteredMedia(data);
-      return;
+  const applyFilter = (data: MediaWithUserData[], state?: MediaState, searchTerm: string = '') => {
+    let filtered = data;
+
+    if (state !== undefined) {
+      const stateNum = Number(state);
+      filtered = filtered.filter(item => item.userState === stateNum);
     }
-    
-    const stateNum = Number(state);
-    const filtered = data.filter(item => {
-      // For other states, show items that match the state
-      return item.userState === stateNum;
-    });
-    
+
+    if (searchTerm) {
+      filtered = filtered.filter(item =>
+        item.title.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
     setFilteredMedia(filtered);
   };
 
   const handleDeleteMedia = async (mediaId: number) => {
     try {
-      // Get user media from API
       const userMediaList = await getUserMediaFromAPI();
       const userMedia = userMediaList.find(um => um.media?.id === mediaId);
       
       if (userMedia && userMedia.id !== undefined) {
-        // Delete from API
-        await deleteUserMediaFromAPI(userMedia.id);
+        await deleteMediaFromAPI(userMedia.media?.id ?? 0);
         
-        // Push changes to sync local database
-        await pushLocalChanges();
-        
-        // Update local state
         const updatedMedia = media.filter(m => m.id !== mediaId);
         setMedia(updatedMedia);
-        applyFilter(updatedMedia, selectedState);
+        applyFilter(updatedMedia, selectedState, searchQuery);
       }
     } catch (error: any) {
       console.error('Error deleting media:', error);
@@ -131,10 +114,10 @@ export const MediaListScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   }, [route.params?.refresh]);
 
-  // Apply filter when selectedState changes
+  // Apply filter when selectedState or searchQuery changes
   useEffect(() => {
-    applyFilter(media, selectedState);
-  }, [selectedState, media]);
+    applyFilter(media, selectedState, searchQuery);
+  }, [selectedState, searchQuery, media]);
 
   const renderMediaItem = ({ item }: { item: MediaWithUserData }) => (
     <TouchableOpacity
@@ -169,11 +152,11 @@ export const MediaListScreen: React.FC<Props> = ({ navigation, route }) => {
           .map(state => {
             const stateValue = Number(state);
             const stateColor = {
-              [MediaState.CHECK]: '#2196F3',    // Blue
-              [MediaState.CHECKED]: '#4CAF50',  // Green
-              [MediaState.VIEWING]: '#FFC107',  // Amber
-              [MediaState.DONE]: '#9C27B0',     // Purple
-            }[stateValue] || '#e0e0e0';         // Default gray
+              [MediaState.CHECK]: '#2196F3',
+              [MediaState.CHECKED]: '#4CAF50',
+              [MediaState.VIEWING]: '#FFC107',
+              [MediaState.DONE]: '#9C27B0',
+            }[stateValue] || '#e0e0e0';
 
             return (
               <TouchableOpacity
@@ -184,7 +167,6 @@ export const MediaListScreen: React.FC<Props> = ({ navigation, route }) => {
                   { borderColor: stateColor }
                 ]}
                 onPress={() => {
-                  // Toggle the filter - if already selected, clear it
                   setSelectedState(selectedState === stateValue ? undefined : stateValue);
                 }}
               >
@@ -203,6 +185,18 @@ export const MediaListScreen: React.FC<Props> = ({ navigation, route }) => {
 
   return (
     <View style={styles.container}>
+      {/* Search Bar */}
+      <View style={styles.searchBarContainer}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search by title..."
+          value={searchQuery}
+          onChangeText={text => {
+            setSearchQuery(text);
+          }}
+        />
+      </View>
+
       {renderFilterBar()}
       <FlatList
         data={filteredMedia}
@@ -225,6 +219,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  searchBarContainer: {
+    padding: 16,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  searchInput: {
+    height: 40,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    paddingLeft: 12,
+    fontSize: 16,
   },
   filterBarContainer: {
     height: 52,
@@ -307,4 +315,4 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: 'white',
   },
-}); 
+});
