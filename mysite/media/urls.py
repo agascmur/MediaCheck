@@ -1,4 +1,5 @@
 from django.urls import path, include
+from django.http import JsonResponse
 from django.contrib.auth import views as auth_views
 from rest_framework.routers import DefaultRouter
 from . import views
@@ -9,6 +10,10 @@ app_name = 'media'
 router = DefaultRouter()
 router.register(r'media', views.MediaViewSet, basename='media')
 router.register(r'user-media', views.UserMediaViewSet, basename='user-media')
+
+
+def health_check(request):
+    return JsonResponse({'status': 'ok'})
 
 urlpatterns = [
     # Main pages
@@ -31,4 +36,6 @@ urlpatterns = [
     path('update-state/<int:media_id>/', views.update_media_state, name='update_media_state'),
     path('api/', include(router.urls)),
     path('api-token-auth/', views.obtain_auth_token, name='api_token_auth'),
+
+    path('health/', health_check),
 ] 

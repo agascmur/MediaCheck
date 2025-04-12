@@ -1,34 +1,131 @@
 import * as SQLite from 'expo-sqlite';
 import { Media, UserMedia, MediaWithUserData, MediaState } from '../types';
+import * as Crypto from 'expo-crypto';
 
 type SQLiteBindParams = (string | number | null | Uint8Array)[];
 
 const db = SQLite.openDatabaseSync('media.db');
 
+// Helper function to hash passwords
+const hashPassword = async (password: string): Promise<string> => {
+  return await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    password
+  );
+};
+
 // Initialize database
 export const initDatabase = async (): Promise<void> => {
+  db.getAllAsync("PRAGMA table_info(users);").then(console.log);
   return new Promise((resolve, reject) => {
-    db.execAsync(
-      `DROP TABLE IF EXISTS user_media;
-       DROP TABLE IF EXISTS media;
-       CREATE TABLE IF NOT EXISTS media (
-         id INTEGER PRIMARY KEY,  -- Use server's ID as primary key
-         title TEXT NOT NULL,
-         media_type TEXT NOT NULL,
-         plot TEXT,
-         chapters TEXT,
-         quotes TEXT,
-         created_at TEXT
-       );
-       CREATE TABLE IF NOT EXISTS user_media (
-         id INTEGER PRIMARY KEY,  -- Use server's ID as primary key
-         media_id INTEGER NOT NULL,
-         state INTEGER,
-         score INTEGER,
-         updated_at TEXT,
-         FOREIGN KEY (media_id) REFERENCES media (id)
-       );`
-    ).then(() => resolve()).catch(reject);
+    try {
+      console.log('Initializing database...');
+      db.execAsync(
+        `CREATE TABLE IF NOT EXISTS users (
+          id INTEGER PRIMARY KEY,
+          username TEXT NOT NULL UNIQUE,
+          token TEXT,
+          password_hash TEXT,
+          is_offline BOOLEAN DEFAULT 0,
+          last_login TEXT
+        );
+        CREATE TABLE IF NOT EXISTS media (
+          id INTEGER PRIMARY KEY,
+          title TEXT NOT NULL,
+          media_type TEXT NOT NULL,
+          plot TEXT,
+          chapters TEXT,
+          quotes TEXT,
+          created_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS user_media (
+          id INTEGER PRIMARY KEY,
+          media_id INTEGER NOT NULL,
+          state INTEGER,
+          score INTEGER,
+          updated_at TEXT,
+          FOREIGN KEY (media_id) REFERENCES media (id)
+        );`
+      ).then(() => {
+        console.log('Database initialized successfully');
+        resolve();
+      }).catch(error => {
+        console.error('Error initializing database:', error);
+        reject(error);
+      });
+    } catch (error) {
+      console.error('Error in initDatabase:', error);
+      reject(error);
+    }
+  });
+};
+
+// User operations
+export const saveUser = async (username: string, token: string, password: string = '', isOffline: boolean = false): Promise<void> => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const currentTime = new Date().toISOString();
+      // For offline users, we don't store the password hash since we can't sync it
+      const passwordHash = isOffline ? '' : await hashPassword(password);
+      
+      await db.runAsync(
+        `INSERT OR REPLACE INTO users (username, token, password_hash, is_offline, last_login)
+         VALUES (?, ?, ?, ?, ?);`,
+        [username, token, passwordHash, isOffline ? 1 : 0, currentTime]
+      );
+      console.log('User saved successfully');
+      resolve();
+    } catch (error) {
+      console.error('Error saving user:', error);
+      reject(error);
+    }
+  });
+};
+
+export const getCurrentUser = async (): Promise<{ username: string; token: string; isOffline: boolean } | null> => {
+  return new Promise((resolve, reject) => {
+    db.getAllAsync<{ username: string; token: string; isOffline: boolean }>(
+      'SELECT username, token, is_offline FROM users ORDER BY last_login DESC LIMIT 1;',
+      []
+    ).then(users => {
+      if (users && users.length > 0) {
+        resolve(users[0]);
+      } else {
+        resolve(null);
+      }
+    }).catch(error => {
+      console.error('Error getting current user:', error);
+      reject(error);
+    });
+  });
+};
+
+export const getOfflineUsers = async (): Promise<{ username: string; isOffline: boolean }[]> => {
+  return new Promise((resolve, reject) => {
+    db.getAllAsync<{ username: string; isOffline: boolean }>(
+      'SELECT username, is_offline FROM users WHERE is_offline = 1;',
+      []
+    ).then(users => {
+      resolve(users || []);
+    }).catch(error => {
+      console.error('Error getting offline users:', error);
+      reject(error);
+    });
+  });
+};
+
+export const updateUserStatus = async (username: string, isOffline: boolean): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    db.runAsync(
+      `UPDATE users SET is_offline = ? WHERE username = ?;`,
+      [isOffline ? 1 : 0, username]
+    ).then(() => {
+      console.log('User status updated successfully');
+      resolve();
+    }).catch(error => {
+      console.error('Error updating user status:', error);
+      reject(error);
+    });
   });
 };
 

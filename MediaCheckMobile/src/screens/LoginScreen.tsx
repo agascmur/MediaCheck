@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,52 +7,58 @@ import {
   StyleSheet,
   Alert,
 } from 'react-native';
-import { login, getMediaFromAPI, getUserMediaFromAPI } from '../services/api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
+import { login } from '../services/api';
+import { saveUser, getCurrentUser } from '../services/database';
 
-type LoginScreenProps = {
-  navigation: NativeStackNavigationProp<RootStackParamList, 'Login'>;
-};
+type LoginScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
+const LoginScreen: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+  const navigation = useNavigation<LoginScreenNavigationProp>();
+
+  useEffect(() => {
+    // Check if user is already logged in
+    const checkLoggedInUser = async () => {
+      try {
+        const user = await getCurrentUser();
+        if (user) {
+          navigation.navigate('MediaList' as never);
+        }
+      } catch (error) {
+        console.error('Error checking logged in user:', error);
+      }
+    };
+    checkLoggedInUser();
+  }, []);
 
   const handleLogin = async () => {
     if (!username || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      Alert.alert('Error', 'Please enter both username and password');
       return;
     }
 
-    setLoading(true);
     try {
-      // 1. Login to get token
-      const token = await login(username, password);
-      await AsyncStorage.setItem('userToken', token);
-      
-      // 2. Clear any existing data
-      await AsyncStorage.removeItem('last_sync_timestamp');
-      
-      // 3. Get fresh data from API
-      const [mediaData, userMediaData] = await Promise.all([
-        getMediaFromAPI(),
-        getUserMediaFromAPI()
-      ]);
-      
-      // 4. Store the data
-      await AsyncStorage.setItem('media_data', JSON.stringify(mediaData));
-      await AsyncStorage.setItem('user_media_data', JSON.stringify(userMediaData));
-      
-      // 5. Navigate to MediaList with refresh
-      navigation.replace('MediaList', { refresh: true });
+      // Try to login with API first
+      try {
+        const token = await login(username, password);
+        await saveUser(username, token);
+        navigation.navigate('MediaList' as never);
+      } catch (apiError) {
+        // If API login fails, check local database
+        const localUser = await getCurrentUser();
+        if (localUser && localUser.username === username) {
+          // User exists in local database, allow login
+          navigation.navigate('MediaList' as never);
+        } else {
+          throw apiError; // Re-throw if user not found locally
+        }
+      }
     } catch (error: any) {
-      console.error('Login error:', error);
-      Alert.alert('Error', error.response?.data?.message || 'Invalid credentials');
-    } finally {
-      setLoading(false);
+      Alert.alert('Login Failed', error.message || 'Invalid username or password');
     }
   };
 
@@ -77,11 +83,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
         <TouchableOpacity
           style={styles.button}
           onPress={handleLogin}
-          disabled={loading}
         >
-          <Text style={styles.buttonText}>
-            {loading ? 'Logging in...' : 'Login'}
-          </Text>
+          <Text style={styles.buttonText}>Login</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.registerButton}

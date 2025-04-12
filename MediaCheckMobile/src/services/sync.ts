@@ -13,6 +13,7 @@ export const syncData = async (): Promise<void> => {
 
     try {
       // Try to sync with API
+      await syncOfflineUsers();
       await syncMedia(lastSyncTime);
       await syncUserMedia(lastSyncTime);
       // Update last sync timestamp only if sync was successful
@@ -24,6 +25,32 @@ export const syncData = async (): Promise<void> => {
   } catch (error) {
     console.error('Error during sync:', error);
     // Don't throw error, just use local data
+  }
+};
+
+const syncOfflineUsers = async (): Promise<void> => {
+  try {
+    // Get all offline users
+    const offlineUsers = await database.getOfflineUsers();
+    
+    // For each offline user, we need to prompt them to re-enter their password
+    // This is because we don't store passwords for offline users
+    for (const user of offlineUsers) {
+      try {
+        // Here we would typically show a dialog to the user asking for their password
+        // For now, we'll just log that we need to handle this
+        console.log(`Need to handle offline user ${user.username} - prompt for password`);
+        // Once we have the password, we can:
+        // 1. Register the user with the backend
+        // 2. Update their status to online
+        // 3. Sync their data
+      } catch (error) {
+        console.warn(`Failed to sync offline user ${user.username}:`, error);
+      }
+    }
+  } catch (error) {
+    console.warn('Error syncing offline users:', error);
+    throw error;
   }
 };
 

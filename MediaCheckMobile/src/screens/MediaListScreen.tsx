@@ -4,7 +4,9 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp, useFocusEffect } from '@react-navigation/native';
 import { RootStackParamList } from '../types/navigation';
 import { MediaWithUserData, MediaState, UserMedia } from '../types';
-import { getUserMediaFromAPI, deleteUserMediaFromAPI, deleteMediaFromAPI } from '../services/api';
+import { getUserMediaFromAPI, deleteUserMediaFromAPI } from '../services/api';
+import { getMediaWithUserData } from '../services/database';
+import { syncData, pushLocalChanges } from '../services/sync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type MediaListScreenNavigationProp = StackNavigationProp<RootStackParamList, 'MediaList'>;
@@ -25,16 +27,27 @@ export const MediaListScreen: React.FC<Props> = ({ navigation, route }) => {
     try {
       setLoading(true);
       
-      // Fetch data from API
-      const userMediaData = await getUserMediaFromAPI();
-      const transformedData = userMediaData.map((userMedia: UserMedia) => ({
-        ...userMedia.media!,
-        userState: userMedia.state !== undefined ? Number(userMedia.state) : undefined,
-        userScore: userMedia.score !== undefined ? Number(userMedia.score) : undefined
-      }));
+      // First try to sync with API
+      await syncData();
       
-      setMedia(transformedData);
-      applyFilter(transformedData, selectedState);
+      // Then get data from local database
+      const localData = await getMediaWithUserData();
+      
+      if (localData.length > 0) {
+        setMedia(localData);
+        applyFilter(localData, selectedState);
+      } else {
+        // Fallback to API if no local data
+        const userMediaData = await getUserMediaFromAPI();
+        const transformedData = userMediaData.map((userMedia: UserMedia) => ({
+          ...userMedia.media!,
+          userState: userMedia.state !== undefined ? Number(userMedia.state) : undefined,
+          userScore: userMedia.score !== undefined ? Number(userMedia.score) : undefined
+        }));
+        
+        setMedia(transformedData);
+        applyFilter(transformedData, selectedState);
+      }
     } catch (error: any) {
       console.error('Error loading media:', error);
       console.error('Error details:', {
@@ -70,8 +83,11 @@ export const MediaListScreen: React.FC<Props> = ({ navigation, route }) => {
       const userMedia = userMediaList.find(um => um.media?.id === mediaId);
       
       if (userMedia && userMedia.id !== undefined) {
-        // Delete from API using the userMedia.id (not media.id)
-        await deleteMediaFromAPI(userMedia.media?.id ?? 0);
+        // Delete from API
+        await deleteUserMediaFromAPI(userMedia.id);
+        
+        // Push changes to sync local database
+        await pushLocalChanges();
         
         // Update local state
         const updatedMedia = media.filter(m => m.id !== mediaId);
