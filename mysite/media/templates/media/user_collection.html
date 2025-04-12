@@ -13,6 +13,23 @@
             <a href="{% media_url 'home' %}" class="btn btn-outline-primary">Browse All Media</a>
         </div>
     </div>
+
+    <form method="get" class="mb-4 d-flex gap-2">
+        <input type="text" name="q" value="{{ query }}" class="form-control" placeholder="Search media...">
+    
+        <select name="state" class="form-select" style="max-width: 200px;">
+            <option value="">All States</option>
+            {% for value, label in user_media_states %}
+                {% if value != 0 %}
+                    <option value="{{ value }}" {% if selected_state == value|stringformat:"s" %}selected{% endif %}>
+                        {{ label }}
+                    </option>
+                {% endif %}
+            {% endfor %}
+        </select>        
+    
+        <button type="submit" class="btn btn-primary">Search</button>
+    </form>
     
     <div class="row">
         {% for user_media in user_media %}

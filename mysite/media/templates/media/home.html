@@ -34,6 +34,23 @@
         {% endif %}
     </div>
     
+    <form method="get" class="mb-4 d-flex gap-2">
+        <input type="text" name="q" value="{{ query }}" class="form-control" placeholder="Search media...">
+        
+        {% if is_authenticated %}
+        <select name="state" class="form-select" style="max-width: 200px;">
+            <option value="">All States</option>
+            {% for value, label in user_media_states %}
+                <option value="{{ value }}" {% if selected_state == value|stringformat:"s" %}selected{% endif %}>
+                    {{ label }}
+                </option>
+            {% endfor %}
+        </select>
+        {% endif %}
+        
+        <button type="submit" class="btn btn-primary">Search</button>
+    </form>
+
     <div class="row">
         {% for media in media_items %}
         <div class="col-md-4 mb-4">

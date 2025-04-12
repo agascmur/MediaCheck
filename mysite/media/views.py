@@ -33,52 +33,101 @@ def obtain_auth_token(request):
     token, created = Token.objects.get_or_create(user=user)
     return Response({'token': token.key})
 
-def home(request):
-    # Get all media items with their average scores
-    media_items = Media.objects.annotate(
-        avg_score=Avg('user_media__score')
-    ).order_by('-avg_score', '-created_at')
+from django.db.models import Avg, Q, Prefetch
+from .models import Media, UserMedia
 
-    # Get user's ratings if user is logged in
+def home(request):
+    query = request.GET.get('q', '')
+    selected_state = request.GET.get('state')
+
+    # Start base queryset
+    media_qs = Media.objects.all()
+
+    # Apply search filter if query is present
+    if query:
+        media_qs = media_qs.filter(title__icontains=query)
+
+    # Apply state filter only if user is authenticated and valid state
+    if request.user.is_authenticated and selected_state in ['1', '2', '3']:
+        media_qs = media_qs.prefetch_related(
+            Prefetch(
+                'user_media',
+                queryset=UserMedia.objects.filter(user=request.user),
+                to_attr='filtered_user_media'
+            )
+        )
+        media_items = []
+        for media in media_qs:
+            # Use prefetched data to check if media is in desired state
+            if hasattr(media, 'filtered_user_media') and media.filtered_user_media:
+                user_media = media.filtered_user_media[0]
+                if user_media.state == int(selected_state):
+                    media_items.append(media)
+    else:
+        media_items = list(media_qs)
+
+    # Annotate with avg score and sort
+    media_items = sorted(
+        media_items,
+        key=lambda m: (
+            -(m.user_media.aggregate(avg_score=Avg('score'))['avg_score'] or 0),
+            -m.created_at.timestamp()
+        )
+    )
+
+    # User rating dict
     user_ratings = {}
     if request.user.is_authenticated:
-        # Get all ratings for the current user
         ratings = UserMedia.objects.filter(
             user=request.user,
             score__isnull=False
         ).select_related('media')
-        
-        # Create a dictionary of media_id -> score
-        user_ratings = {rating.media_id: rating.score for rating in ratings}
+        user_ratings = {r.media_id: r.score for r in ratings}
 
     context = {
         'media_items': media_items,
         'user_ratings': user_ratings,
         'is_authenticated': request.user.is_authenticated,
         'user_media_states': UserMedia.MediaState.choices,
+        'selected_state': selected_state,
+        'query': query,
     }
     return render(request, 'media/home.html', context)
 
 @login_required
+
 def user_collection(request):
-    # Get all media items in the user's collection except those with state CHECK
-    user_media = UserMedia.objects.filter(
+    query = request.GET.get('q', '')
+    selected_state = request.GET.get('state')
+
+    # Start with all user media excluding "Check" state
+    user_media_qs = UserMedia.objects.filter(
         user=request.user
     ).exclude(
         state=UserMedia.MediaState.CHECK
     ).select_related('media')
-    
-    # Get user's ratings
+
+    # Filter by search query
+    if query:
+        user_media_qs = user_media_qs.filter(media__title__icontains=query)
+
+    # Filter by selected state if provided and valid
+    if selected_state in ['1', '2', '3']:
+        user_media_qs = user_media_qs.filter(state=int(selected_state))
+
+    # Build user ratings dict
     user_ratings = {
         rating.media_id: rating.score 
-        for rating in user_media.filter(score__isnull=False)
+        for rating in user_media_qs.filter(score__isnull=False)
     }
-    
+
     context = {
-        'user_media': user_media,
+        'user_media': user_media_qs,
         'user_ratings': user_ratings,
         'is_authenticated': True,
         'user_media_states': UserMedia.MediaState.choices,
+        'selected_state': selected_state,
+        'query': query,
     }
     return render(request, 'media/user_collection.html', context)
 
