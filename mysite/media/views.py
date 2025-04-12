@@ -13,6 +13,9 @@ from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 from rest_framework import serializers
 from rest_framework.permissions import AllowAny
+from rest_framework.views import APIView
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -279,3 +282,32 @@ class UserMediaViewSet(viewsets.ModelViewSet):
     def get_token(self, request):
         token, created = Token.objects.get_or_create(user=request.user)
         return Response({'token': token.key})
+
+# API offline
+class UserExistsView(APIView):
+    def get(self, request, username, *args, **kwargs):
+        exists = User.objects.filter(username=username).exists()
+        if exists:
+            return JsonResponse({'exists': exists}, status=200)
+        else:
+            return JsonResponse({'exists': exists}, status=404)
+
+@method_decorator(csrf_exempt, name='dispatch')
+class RegisterView(APIView):
+    def post(self, request):
+        import json
+        data = json.loads(request.body)
+
+        username = data.get('username')
+        password = data.get('password')
+        email = data.get('email', '')
+
+        if User.objects.filter(username=username).exists():
+            return Response({'error': 'Username already exists'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = User.objects.create(username=username, email=email)
+        user.set_password(password)
+        user.save()
+        Token.objects.create(user=user)
+
+        return Response({'message': 'User registered successfully'}, status=status.HTTP_201_CREATED)

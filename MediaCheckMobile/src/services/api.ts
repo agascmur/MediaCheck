@@ -24,6 +24,15 @@ const isOnline = async (): Promise<boolean> => {
   }
 };
 
+const userExists = async (username: string): Promise<boolean> => {
+  try {
+    const response = await fetch(`${API_URL}/user-exists/${username}`);
+    return response.status === 200;
+  } catch {
+    return false; // fallback, o podrías lanzar un error
+  }
+};
+
 // Auth operations
 export const register = async (username: string, password: string): Promise<void> => {
   if (!await isOnline()) {
@@ -33,7 +42,7 @@ export const register = async (username: string, password: string): Promise<void
     await saveUser(username, tempToken, password, true);
     return;
   }
-  const response = await fetch(`${API_URL}/register/`, {
+  const response = await fetch(`${API_URL}/register-App/`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -55,6 +64,12 @@ export const login = async (username: string, password: string): Promise<string>
     }
     throw new Error('Network error: Backend is unreachable');
   }
+
+  // If the user doesn't exist in the backend, register them
+  if(!await userExists(username)) {
+    await register(username, password);
+  }
+
   const response = await fetch(`${API_URL}/api-token-auth/`, {
     method: 'POST',
     headers: {

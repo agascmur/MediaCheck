@@ -38,4 +38,6 @@ urlpatterns = [
     path('api-token-auth/', views.obtain_auth_token, name='api_token_auth'),
 
     path('health/', health_check),
+    path('user-exists/<str:username>/', views.UserExistsView.as_view(), name='user_exists'),
+    path('register-App/', views.RegisterView.as_view(), name='register_api'),
 ] 
